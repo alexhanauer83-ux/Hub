@@ -194,6 +194,7 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
 
     fun markRead(id: String) = viewModelScope.launch { repository.markRead(id) }
     fun archive(id: String) = viewModelScope.launch { repository.archive(id) }
+    fun delete(id: String) = viewModelScope.launch { repository.delete(id) }
     fun unarchive(id: String) = viewModelScope.launch { repository.unarchive(id) }
     fun setPriority(id: String, priority: Boolean) = viewModelScope.launch { repository.setPriority(id, priority) }
 }

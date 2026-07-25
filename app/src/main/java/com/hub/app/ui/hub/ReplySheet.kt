@@ -25,6 +25,7 @@ import com.hub.app.data.local.entity.MessageEntity
 @Composable
 fun ReplySheet(
     message: MessageEntity,
+    canReply: Boolean,
     state: QuickReplyState,
     onSend: (String) -> Unit,
     onDismiss: () -> Unit
@@ -55,7 +56,15 @@ fun ReplySheet(
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(16.dp))
-            QuickReplyBar(state = state, onSend = onSend)
+            if (canReply) {
+                QuickReplyBar(state = state, onSend = onSend)
+            } else {
+                Text(
+                    "Antworten ist für diese Nachricht nicht möglich. Doppeltippen öffnet die App.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

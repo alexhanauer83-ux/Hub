@@ -37,6 +37,7 @@ fun SwipeableMessageRow(
     onArchive: () -> Unit,
     onUnarchive: () -> Unit,
     onClick: () -> Unit,
+    onDoubleClick: () -> Unit,
     onLongPress: () -> Unit,
     onReply: () -> Unit,
     modifier: Modifier = Modifier
@@ -74,6 +75,7 @@ fun SwipeableMessageRow(
         MessageRow(
             message = message,
             onClick = onClick,
+            onDoubleClick = onDoubleClick,
             onLongPress = onLongPress,
             onReply = onReply
         )

@@ -194,13 +194,23 @@ fun HubScreen(
             onAlwaysPrioritizeSender = {
                 viewModel.addPriorityContact(message)
                 closePeek()
+            },
+            onOpenApp = {
+                viewModel.openMessage(message)
+                closePeek()
+            },
+            onDelete = {
+                viewModel.delete(message.id)
+                closePeek()
             }
         )
     }
 
     replyMessage?.let { message ->
+        val canReply = remember(message.id) { viewModel.canReply(message) }
         ReplySheet(
             message = message,
+            canReply = canReply,
             state = quickReplyState,
             onSend = { text -> viewModel.sendReply(message, text) },
             onDismiss = {
@@ -262,9 +272,10 @@ private fun MessageList(
                 onMarkRead = { onMarkRead(message.id) },
                 onArchive = { onArchive(message.id) },
                 onUnarchive = { onUnarchive(message.id) },
-                // Antippen öffnet die Nachricht in der Quell-App (und markiert sie als
-                // gelesen); die Vorschau ohne App-Wechsel gibt es per Long-Press.
-                onClick = { onOpen(message) },
+                // Kurz tippen = Antworten (Vorschau/Antwortfeld), doppelt tippen = App
+                // öffnen, lange drücken = Menü (Peek mit allen Aktionen inkl. App öffnen).
+                onClick = { onReply(message) },
+                onDoubleClick = { onOpen(message) },
                 onLongPress = { onOpenPeek(message) },
                 onReply = { onReply(message) }
             )

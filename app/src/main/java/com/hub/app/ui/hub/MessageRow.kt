@@ -49,6 +49,7 @@ fun MessageRow(
     message: MessageEntity,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    onDoubleClick: (() -> Unit)? = null,
     onLongPress: (() -> Unit)? = null,
     onReply: (() -> Unit)? = null
 ) {
@@ -57,9 +58,10 @@ fun MessageRow(
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
             .then(
-                if (onClick != null || onLongPress != null) {
+                if (onClick != null || onLongPress != null || onDoubleClick != null) {
                     Modifier.combinedClickable(
                         onClick = { onClick?.invoke() },
+                        onDoubleClick = onDoubleClick,
                         onLongClick = onLongPress
                     )
                 } else Modifier

@@ -69,6 +69,7 @@ class MessageRepository(
     suspend fun archive(id: String) = messageDao.archive(id)
     suspend fun unarchive(id: String) = messageDao.unarchive(id)
     suspend fun setPriority(id: String, priority: Boolean) = messageDao.setPriority(id, priority)
+    suspend fun delete(id: String) = messageDao.delete(id)
     suspend fun getById(id: String): MessageEntity? = messageDao.getById(id)
 
     suspend fun registerSource(sourceApp: SourceAppEntity) {

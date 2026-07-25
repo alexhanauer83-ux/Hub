@@ -14,6 +14,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -49,6 +51,8 @@ fun MessagePeekSheet(
     onArchive: () -> Unit,
     onTogglePriority: () -> Unit,
     onAlwaysPrioritizeSender: () -> Unit,
+    onOpenApp: () -> Unit,
+    onDelete: () -> Unit,
     canQuickReply: Boolean,
     quickReplyState: QuickReplyState,
     onSendQuickReply: (String) -> Unit
@@ -115,15 +119,19 @@ fun MessagePeekSheet(
             Spacer(Modifier.height(20.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                PeekAction(Icons.Default.OpenInNew, "App öffnen", onOpenApp)
+                if (!message.isRead) {
+                    PeekAction(Icons.Default.MarkEmailRead, "Gelesen", onMarkRead)
+                }
+                PeekAction(Icons.Default.Archive, "Archivieren", onArchive)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 PeekAction(
                     icon = if (message.priority) Icons.Default.Star else Icons.Default.StarBorder,
                     label = if (message.priority) "Priorität aus" else "Priorität",
                     onClick = onTogglePriority
                 )
-                if (!message.isRead) {
-                    PeekAction(Icons.Default.MarkEmailRead, "Gelesen", onMarkRead)
-                }
-                PeekAction(Icons.Default.Archive, "Archivieren", onArchive)
+                PeekAction(Icons.Default.Delete, "Löschen", onDelete)
             }
 
             TextButton(onClick = onAlwaysPrioritizeSender) {
