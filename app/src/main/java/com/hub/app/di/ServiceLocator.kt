@@ -6,6 +6,8 @@ import com.hub.app.connectors.ConnectorRegistry
 import com.hub.app.connectors.telegram.TelegramBotConnector
 import com.hub.app.data.local.HubDatabase
 import com.hub.app.data.repository.MessageRepository
+import com.hub.app.security.DatabaseKeyManager
+import net.sqlcipher.database.SupportFactory
 
 /**
  * Bewusst kein DI-Framework (Hilt/Koin): Die App hat wenige, klar geschnittene
@@ -55,9 +57,19 @@ object ServiceLocator {
             }
         }
 
-    private fun buildDatabase(context: Context): HubDatabase =
-        Room.databaseBuilder(context, HubDatabase::class.java, HubDatabase.DATABASE_NAME)
-            // Ab Phase 7 hier .openHelperFactory(SupportFactory(passphrase)) für SQLCipher.
+    /**
+     * Öffnet die Datenbank SQLCipher-verschlüsselt. Der Schlüssel kommt aus dem
+     * Keystore-gesicherten [DatabaseKeyManager]; SQLCipher überschreibt das übergebene
+     * ByteArray nach dem Öffnen selbst.
+     */
+    private fun buildDatabase(context: Context): HubDatabase {
+        val passphrase = DatabaseKeyManager(context).getOrCreatePassphrase()
+        return Room.databaseBuilder(context, HubDatabase::class.java, HubDatabase.DATABASE_NAME)
+            .openHelperFactory(SupportFactory(passphrase))
+            // Die Datenbank ist ein lokaler Cache abgegriffener Nachrichten, keine
+            // Primaerquelle - bei einem Schema-Sprung ist Neuaufbau vertretbar und
+            // allemal besser als eine fehlerhafte Migration ueber verschluesselten Daten.
             .fallbackToDestructiveMigration()
             .build()
+    }
 }

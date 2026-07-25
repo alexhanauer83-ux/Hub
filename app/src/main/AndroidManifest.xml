@@ -28,10 +28,19 @@
          NICHT angefordert: Der NotificationListenerService liefert den Paketnamen der
          Quell-App ohnehin, und der Zugriff auf deren Label/Icon ist darueber erlaubt. -->
 
+    <!-- Phase 7: App-Lock. USE_BIOMETRIC deckt Fingerabdruck/Gesicht ab; die Geraete-PIN
+         als Rueckfallebene braucht keine eigene Berechtigung. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
+    <!-- allowBackup=false ist hier eine bewusste Sicherheitsentscheidung, kein Versehen:
+         Der Hub buendelt Nachrichteninhalte aller Apps. Wuerde Android sie ins Cloud-
+         Backup schieben, waere die lokale Verschluesselung wertlos - die Daten laegen
+         ausserhalb des Geraets. Das widerspricht der Zusage "bleibt lokal". -->
     <application
         android:name=".HubApplication"
         android:allowBackup="false"
         android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"

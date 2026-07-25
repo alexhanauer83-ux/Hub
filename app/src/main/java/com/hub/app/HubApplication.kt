@@ -3,6 +3,10 @@ package com.hub.app
 import android.app.Application
 import com.hub.app.connectors.telegram.TelegramBotConnector
 import com.hub.app.di.ServiceLocator
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class HubApplication : Application() {
     override fun onCreate() {
@@ -19,9 +23,14 @@ class HubApplication : Application() {
      * nicht betroffen, den hält das System selbst am Leben.
      */
     private fun startConfiguredConnectors() {
-        val registry = ServiceLocator.connectorRegistry(this)
-        if (ServiceLocator.telegramConnector(this).isConfigured()) {
-            registry.start(TelegramBotConnector.SOURCE_KEY)
+        // Nicht auf dem Main-Thread: Der erste Zugriff initialisiert Keystore,
+        // EncryptedSharedPreferences und die SQLCipher-Datenbank - alles Disk-I/O
+        // plus Krypto, das den App-Start sichtbar verzoegern wuerde.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            val registry = ServiceLocator.connectorRegistry(this@HubApplication)
+            if (ServiceLocator.telegramConnector(this@HubApplication).isConfigured()) {
+                registry.start(TelegramBotConnector.SOURCE_KEY)
+            }
         }
     }
 }

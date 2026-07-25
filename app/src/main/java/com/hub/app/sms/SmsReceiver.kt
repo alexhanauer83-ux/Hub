@@ -37,12 +37,16 @@ class SmsReceiver : BroadcastReceiver() {
         val address = first.displayOriginatingAddress ?: "Unbekannt"
         val timestamp = first.timestampMillis
 
-        val repository = ServiceLocator.messageRepository(context)
+        // goAsync haelt den Receiver am Leben, bis die Coroutine fertig ist - ohne das
+        // darf nach onReceive nicht mehr auf den Context zugegriffen werden.
         val pendingResult = goAsync()
+        val appContext = context.applicationContext
 
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                repository.ingest(
+                // Erst hier aufloesen: initialisiert Keystore + verschluesselte DB,
+                // das gehoert nicht auf den Main-Thread von onReceive.
+                ServiceLocator.messageRepository(appContext).ingest(
                     IncomingMessage(
                         sourceKey = SmsMessageSource.SOURCE_KEY,
                         sourceLabel = "SMS",

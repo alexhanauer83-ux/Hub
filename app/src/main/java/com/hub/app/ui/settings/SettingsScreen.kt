@@ -91,6 +91,14 @@ fun SettingsScreen(
                 .padding(padding)
         ) {
             item {
+                SectionHeader("Sicherheit")
+                SecuritySection(
+                    isAppLockEnabled = state.isAppLockEnabled,
+                    canUseAppLock = state.canUseAppLock,
+                    onToggleAppLock = viewModel::setAppLockEnabled
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
                 SectionHeader("Direkte Anbindungen")
                 Text(
                     "Über die offene API angebundene Dienste liefern den vollen Verlauf und " +
@@ -159,6 +167,42 @@ private fun SectionHeader(text: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp)
     )
+}
+
+@Composable
+private fun SecuritySection(
+    isAppLockEnabled: Boolean,
+    canUseAppLock: Boolean,
+    onToggleAppLock: (Boolean) -> Unit
+) {
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("App-Sperre", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    if (canUseAppLock) {
+                        "Beim Öffnen per Biometrie oder Geräte-PIN entsperren."
+                    } else {
+                        "Auf diesem Gerät ist keine Bildschirmsperre eingerichtet."
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = isAppLockEnabled,
+                onCheckedChange = onToggleAppLock,
+                enabled = canUseAppLock
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Alle Nachrichten bleiben verschlüsselt auf diesem Gerät. Keine Cloud, keine " +
+                "Synchronisierung, kein Tracking.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }
 
 @Composable

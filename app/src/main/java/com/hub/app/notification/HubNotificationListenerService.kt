@@ -30,13 +30,12 @@ import kotlinx.coroutines.launch
 class HubNotificationListenerService : NotificationListenerService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private lateinit var repository: MessageRepository
     private val appLabelCache = mutableMapOf<String, String>()
 
-    override fun onCreate() {
-        super.onCreate()
-        repository = ServiceLocator.messageRepository(this)
-    }
+    // Lazy statt in onCreate: Der erste Zugriff initialisiert Keystore und die
+    // SQLCipher-Datenbank. onCreate laeuft auf dem Main-Thread - so passiert das
+    // stattdessen in der IO-Coroutine von handleNotification.
+    private val repository: MessageRepository by lazy { ServiceLocator.messageRepository(this) }
 
     override fun onListenerConnected() {
         super.onListenerConnected()

@@ -80,6 +80,9 @@ dependencies {
     // Security: Keystore-backed key storage for the SQLCipher passphrase, biometric app-lock
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.biometric:biometric:1.1.0")
+    // BiometricPrompt haengt sich an den Fragment-Manager, daher MainActivity als
+    // FragmentActivity (siehe MainActivity-KDoc).
+    implementation("androidx.fragment:fragment-ktx:1.8.2")
 
     // Networking for API connectors (Telegram Bot API, IMAP)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

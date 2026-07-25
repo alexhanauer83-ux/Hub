@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Ab Android 12 loesen diese Regeln allowBackup/fullBackupContent ab.
+    Beides ist hier vollstaendig gesperrt:
+      - cloud-backup:  kein Google-Cloud-Backup der Nachrichten-Datenbank.
+      - device-transfer: auch beim direkten Geraetewechsel wird nichts uebertragen.
+    Begruendung: Der Hub sammelt Nachrichteninhalte aller Apps an einem Ort. Diese Daten
+    sollen das Geraet nicht verlassen - sonst waere die SQLCipher-Verschluesselung nur
+    noch Fassade. Der Preis ist, dass der Nutzer den Feed bei einem Geraetewechsel neu
+    aufbaut; das ist bei einem Aggregator vertretbar, da die Quell-Apps die Daten ohnehin
+    weiterhin haben.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

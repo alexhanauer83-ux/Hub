@@ -7,6 +7,7 @@ import com.hub.app.data.local.entity.SourceAppEntity
 import com.hub.app.data.repository.MessageRepository
 import com.hub.app.di.ServiceLocator
 import com.hub.app.notification.NotificationAccess
+import com.hub.app.security.AppLockManager
 import com.hub.app.sms.SmsDefaultAppManager
 import com.hub.app.sms.SmsMessageSource
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +23,9 @@ data class SettingsUiState(
     val sources: List<SourceAppEntity> = emptyList(),
     val hasNotificationAccess: Boolean = false,
     val isDefaultSmsApp: Boolean = false,
-    val hasSmsReadPermission: Boolean = false
+    val hasSmsReadPermission: Boolean = false,
+    val isAppLockEnabled: Boolean = false,
+    val canUseAppLock: Boolean = false
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -30,6 +33,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val repository: MessageRepository = ServiceLocator.messageRepository(application)
     private val smsManager = SmsDefaultAppManager(application)
     private val smsSource = SmsMessageSource(application)
+    private val appLock = AppLockManager(application)
 
     private val systemState = MutableStateFlow(readSystemState())
 
@@ -46,8 +50,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private fun readSystemState() = SettingsUiState(
         hasNotificationAccess = NotificationAccess.isGranted(getApplication()),
         isDefaultSmsApp = smsManager.isDefaultSmsApp(),
-        hasSmsReadPermission = smsSource.hasReadPermission()
+        hasSmsReadPermission = smsSource.hasReadPermission(),
+        isAppLockEnabled = appLock.isLockEnabled,
+        canUseAppLock = appLock.canAuthenticate()
     )
+
+    fun setAppLockEnabled(enabled: Boolean) {
+        appLock.isLockEnabled = enabled
+        refreshSystemState()
+    }
 
     fun smsRoleRequestIntent() = smsManager.requestRoleIntent()
 

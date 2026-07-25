@@ -30,22 +30,53 @@ geschrieben. Zum Bauen:
 
 ## Phasen (siehe Commit-Historie)
 
-1. Grundgerüst (dieses Commit)
+1. Grundgerüst
 2. NotificationListenerService + Onboarding
-3. Hub-UI (Swipe, Filter, Priority Hub)
+3. Hub-UI (Swipe, Filter, Priority Hub, Peek)
 4. Quick Reply (RemoteInput)
 5. SMS als Standard-App (optional)
-6. API-Connectoren (Telegram PoC, IMAP/Matrix als Stub)
+6. API-Connectoren (Telegram vollständig, IMAP/Matrix als Stub)
 7. Verschlüsselung, App-Lock, Politur
 
-## Berechtigungen (kumulativ, wächst mit den Phasen)
+## Berechtigungen
 
-| Berechtigung | Ab Phase | Warum |
+| Berechtigung | Phase | Warum |
 |---|---|---|
-| `BIND_NOTIFICATION_LISTENER_SERVICE` | 2 | Notification-Abgriff (Kernfunktion 1) |
-| `POST_NOTIFICATIONS` | 2 | Eigene Status-/Fehlermeldungen der App (Android 13+) |
-| SMS-Set (`RECEIVE_SMS`, `SEND_SMS`, `READ_SMS`, `RECEIVE_MMS`, `RECEIVE_WAP_PUSH`) | 5 | Standard-SMS-App-Rolle |
-| `USE_BIOMETRIC` | 7 | App-Lock |
-| Internet/Netzwerk | 6 | Telegram-Bot-API-Polling, IMAP |
+| `BIND_NOTIFICATION_LISTENER_SERVICE` | 2 | Notification-Abgriff (Kernfunktion 1). Signatur-Permission: nur das System darf den Service binden. Vom Nutzer nur in den Systemeinstellungen erteilbar, nicht per Runtime-Dialog. |
+| `POST_NOTIFICATIONS` | 2 | Eigene Hinweise der App (Android 13+). Nicht fürs Mitlesen fremder Notifications. |
+| `INTERNET`, `ACCESS_NETWORK_STATE` | 6 | Nur für die API-Connectoren. Verbindungen gehen direkt zum Dienst – kein Hub-Backend. |
+| SMS-Set (`RECEIVE_SMS`, `READ_SMS`, `SEND_SMS`, `RECEIVE_MMS`, `RECEIVE_WAP_PUSH`) | 5 | Nur relevant, wenn Hub bewusst zur Standard-SMS-App gemacht wird. |
+| `USE_BIOMETRIC` | 7 | App-Lock. Geräte-PIN als Rückfallebene braucht keine eigene Berechtigung. |
 
-Details jeweils im Commit der entsprechenden Phase.
+Bewusst **nicht** angefordert: `QUERY_ALL_PACKAGES` (der Listener liefert den Paketnamen
+ohnehin). Backup ist über `allowBackup=false` und `data_extraction_rules.xml` vollständig
+gesperrt, sonst würden die aggregierten Nachrichten das Gerät verlassen.
+
+## Was fertig ist – und was nicht
+
+Ehrlich gehalten, damit niemand auf eine Fassade hereinfällt:
+
+| Bereich | Status |
+|---|---|
+| Notification-Aggregation, Feed, Swipe/Filter/Priority/Peek | vollständig |
+| Quick Reply via RemoteInput | vollständig |
+| Telegram (Bot API) | vollständig, aber Bot-API-typisch begrenzt: ein Bot sieht **nur an ihn gerichtete** Nachrichten, nicht die privaten Chats des Nutzers |
+| SMS | Lesen/Senden implementiert; eingehende SMS werden **nicht** in den System-Provider zurückgeschrieben → im UI als experimentell gekennzeichnet |
+| Verschlüsselung (SQLCipher + Keystore), App-Lock | vollständig |
+| IMAP | Gerüst lauffähig, aber Polling statt IDLE, Message-Nummer statt UID, Passwort im Klartext → TODOs im KDoc |
+| Matrix | reiner Platzhalter, wirft `NotImplementedError` (Begründung im KDoc) |
+
+IMAP und Matrix sind absichtlich **nicht** in der `ConnectorRegistry` registriert, damit sie
+nicht als nutzbare Quellen in den Einstellungen erscheinen.
+
+## Bekannte Plattform-Grenzen (nicht behebbar)
+
+- **Redigierte Notification-Inhalte**: Blendet Android sensible Inhalte aus, liefert es an
+  Listener nur Platzhaltertext. Hub erkennt das heuristisch und kennzeichnet es, statt den
+  Platzhalter als echte Nachricht auszugeben. Abhilfe gibt es nur über einen echten
+  API-Connector.
+- **Quick Reply nach Neustart**: Die `PendingIntent` einer fremden App ist nicht
+  persistierbar. Nach Geräteneustart oder Verwerfen der Notification bleibt die Nachricht
+  im Hub, die Antwortmöglichkeit aber nicht.
+- **Connector-Laufzeit**: Die Polling-Schleifen laufen im App-Prozess. Beendet Android den
+  Prozess, enden sie – echter Hintergrundempfang bräuchte Foreground-Service/WorkManager.
