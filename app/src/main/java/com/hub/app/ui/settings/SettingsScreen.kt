@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -28,6 +29,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -50,7 +52,11 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    // Beim Öffnen der Einstellungen einmalig automatisch nach einem Update suchen.
+    LaunchedEffect(Unit) { viewModel.checkForUpdate() }
 
     // Rollen-Dialog und Runtime-Permission liefern ihr Ergebnis asynchron zurueck;
     // danach den Systemzustand neu einlesen.
@@ -192,18 +198,60 @@ fun SettingsScreen(
 
             item {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                val version = remember {
-                    runCatching {
-                        context.packageManager.getPackageInfo(context.packageName, 0).versionName
-                    }.getOrNull() ?: "?"
-                }
-                Text(
-                    "Hub · Version $version",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(16.dp)
+                SectionHeader("App-Update")
+                UpdateSection(
+                    currentVersion = viewModel.currentVersion,
+                    state = updateState,
+                    onCheck = viewModel::checkForUpdate,
+                    onInstall = { info -> viewModel.downloadAndInstall(info) }
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun UpdateSection(
+    currentVersion: String,
+    state: UpdateState,
+    onCheck: () -> Unit,
+    onInstall: (com.hub.app.update.UpdateManager.UpdateInfo) -> Unit
+) {
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        Text(
+            "Installierte Version: $currentVersion",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+
+        when (val s = state) {
+            UpdateState.Checking -> Text("Suche nach Updates …", style = MaterialTheme.typography.bodyMedium)
+            UpdateState.Downloading -> Text("Update wird geladen …", style = MaterialTheme.typography.bodyMedium)
+            UpdateState.UpToDate -> {
+                Text("Du hast die neueste Version.", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(4.dp))
+                TextButton(onClick = onCheck) { Text("Erneut prüfen") }
+            }
+            is UpdateState.Available -> {
+                Text(
+                    "Update verfügbar: Version ${s.info.versionName}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                s.info.notes?.let {
+                    Spacer(Modifier.height(4.dp))
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { onInstall(s.info) }) { Text("Jetzt aktualisieren") }
+            }
+            is UpdateState.Error -> {
+                Text("Prüfung fehlgeschlagen: ${s.message}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                Spacer(Modifier.height(4.dp))
+                TextButton(onClick = onCheck) { Text("Erneut prüfen") }
+            }
+            UpdateState.Idle -> TextButton(onClick = onCheck) { Text("Nach Updates suchen") }
         }
     }
 }

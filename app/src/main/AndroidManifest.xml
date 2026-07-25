@@ -27,6 +27,10 @@
     <!-- Fuer die Empfaengerauswahl beim SMS-Verfassen. Wird zur Laufzeit abgefragt und
          nur lokal zur Anzeige/Auswahl genutzt. -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+
+    <!-- Selbst-Update: erlaubt Hub, die heruntergeladene Update-APK zu installieren.
+         Android zeigt beim Installieren trotzdem einen Bestaetigungsdialog. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <!-- Seit Android 11 sind installierte Apps standardmaessig fuereinander unsichtbar
@@ -68,6 +72,17 @@
         <receiver
             android:name=".notification.HubReplyReceiver"
             android:exported="false" />
+
+        <!-- Teilt die heruntergeladene Update-APK sicher mit dem System-Installer. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <activity
             android:name=".MainActivity"

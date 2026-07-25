@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Update-APKs liegen im Cache der App und werden von dort dem Installer freigegeben. -->
+    <cache-path name="updates" path="updates/" />
+</paths>

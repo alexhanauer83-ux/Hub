@@ -20,6 +20,15 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+sealed interface UpdateState {
+    data object Idle : UpdateState
+    data object Checking : UpdateState
+    data object UpToDate : UpdateState
+    data object Downloading : UpdateState
+    data class Available(val info: com.hub.app.update.UpdateManager.UpdateInfo) : UpdateState
+    data class Error(val message: String) : UpdateState
+}
+
 data class SettingsUiState(
     val sources: List<SourceAppEntity> = emptyList(),
     val hasNotificationAccess: Boolean = false,
@@ -44,6 +53,35 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         combine(repository.observeSources(), systemState) { sources, system ->
             system.copy(sources = sources)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsUiState())
+
+    // --- Selbst-Update ---
+    private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
+    val updateState: StateFlow<UpdateState> = _updateState
+
+    val currentVersion: String = com.hub.app.update.UpdateManager.currentVersion(application)
+
+    fun checkForUpdate() = viewModelScope.launch {
+        _updateState.value = UpdateState.Checking
+        com.hub.app.update.UpdateManager.check(getApplication()).fold(
+            onSuccess = { info ->
+                _updateState.value =
+                    if (info == null) UpdateState.UpToDate
+                    else UpdateState.Available(info)
+            },
+            onFailure = { _updateState.value = UpdateState.Error(it.message ?: "Prüfung fehlgeschlagen") }
+        )
+    }
+
+    fun downloadAndInstall(info: com.hub.app.update.UpdateManager.UpdateInfo) = viewModelScope.launch {
+        _updateState.value = UpdateState.Downloading
+        com.hub.app.update.UpdateManager.download(getApplication(), info).fold(
+            onSuccess = { file ->
+                _updateState.value = UpdateState.Available(info) // zurück, falls Nutzer Dialog abbricht
+                com.hub.app.update.UpdateManager.install(getApplication(), file)
+            },
+            onFailure = { _updateState.value = UpdateState.Error(it.message ?: "Download fehlgeschlagen") }
+        )
+    }
 
     /** Nach Rückkehr aus Systemeinstellungen/Rollen-Dialog neu einlesen. */
     fun refreshSystemState() {
