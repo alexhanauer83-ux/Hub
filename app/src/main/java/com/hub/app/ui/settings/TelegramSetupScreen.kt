@@ -76,6 +76,7 @@ class TelegramSetupViewModel(application: Application) : AndroidViewModel(applic
                     )
                 )
                 registry.start(TelegramBotConnector.SOURCE_KEY)
+                com.hub.app.connectors.ConnectorSyncService.startIfEnabled(getApplication())
                 _state.value = TelegramSetupState.Connected(botName)
             },
             onFailure = { error ->

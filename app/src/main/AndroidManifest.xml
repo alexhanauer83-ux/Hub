@@ -31,6 +31,13 @@
     <!-- Selbst-Update: erlaubt Hub, die heruntergeladene Update-APK zu installieren.
          Android zeigt beim Installieren trotzdem einen Bestaetigungsdialog. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- Hintergrund-Empfang der API-Connectoren (Telegram/Matrix/IMAP) via Foreground-
+         Service. DATA_SYNC-Typ ist ab Android 14 Pflicht; Boot-Completed startet den
+         Service nach Neustart erneut. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <!-- Seit Android 11 sind installierte Apps standardmaessig fuereinander unsichtbar
@@ -90,6 +97,20 @@
             android:name=".widget.HubWidgetService"
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <!-- Hintergrund-Empfang der API-Connectoren. -->
+        <service
+            android:name=".connectors.ConnectorSyncService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <receiver
+            android:name=".connectors.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Teilt die heruntergeladene Update-APK sicher mit dem System-Installer. -->
         <provider

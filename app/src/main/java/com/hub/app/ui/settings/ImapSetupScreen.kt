@@ -81,6 +81,7 @@ class ImapSetupViewModel(application: Application) : AndroidViewModel(applicatio
                     )
                 )
                 registry.start(ImapConnector.SOURCE_KEY)
+                com.hub.app.connectors.ConnectorSyncService.startIfEnabled(getApplication())
                 _state.value = ImapSetupState.Connected(config.username)
             },
             onFailure = { _state.value = ImapSetupState.NotConnected(it.message ?: "Verbindung fehlgeschlagen") }

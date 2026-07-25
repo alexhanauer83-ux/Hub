@@ -19,6 +19,11 @@ class NotificationSettings(context: Context) {
         get() = prefs.getBoolean(KEY_REPLACE, false)
         set(value) = prefs.edit().putBoolean(KEY_REPLACE, value).apply()
 
+    /** Hintergrund-Empfang der API-Connectoren (Foreground-Service). Standard: an. */
+    var backgroundSyncEnabled: Boolean
+        get() = prefs.getBoolean(KEY_BG_SYNC, true)
+        set(value) = prefs.edit().putBoolean(KEY_BG_SYNC, value).apply()
+
     /**
      * Quellen (sourceKeys), für die Hub keine eigene Benachrichtigung/keinen Ton erzeugt.
      * Die Nachrichten landen weiterhin im Feed – nur die Alarmierung entfällt.
@@ -39,5 +44,6 @@ class NotificationSettings(context: Context) {
         const val PREFS_NAME = "hub_notification_settings"
         const val KEY_REPLACE = "replace_other_notifications"
         const val KEY_MUTED = "muted_sources"
+        const val KEY_BG_SYNC = "background_sync"
     }
 }

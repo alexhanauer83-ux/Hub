@@ -40,7 +40,9 @@ data class SettingsUiState(
     val isAppLockEnabled: Boolean = false,
     val canUseAppLock: Boolean = false,
     val replaceOtherNotifications: Boolean = false,
-    val mutedSources: Set<String> = emptySet()
+    val mutedSources: Set<String> = emptySet(),
+    val backgroundSyncEnabled: Boolean = true,
+    val hasConnector: Boolean = false
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -120,8 +122,18 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         isAppLockEnabled = appLock.isLockEnabled,
         canUseAppLock = appLock.canAuthenticate(),
         replaceOtherNotifications = notificationSettings.replaceOtherNotifications,
-        mutedSources = notificationSettings.mutedSources()
+        mutedSources = notificationSettings.mutedSources(),
+        backgroundSyncEnabled = notificationSettings.backgroundSyncEnabled,
+        hasConnector = com.hub.app.connectors.ConnectorSyncService.anyConnectorConfigured(getApplication())
     )
+
+    fun setBackgroundSyncEnabled(enabled: Boolean) {
+        notificationSettings.backgroundSyncEnabled = enabled
+        val app = getApplication<Application>()
+        if (enabled) com.hub.app.connectors.ConnectorSyncService.startIfEnabled(app)
+        else com.hub.app.connectors.ConnectorSyncService.stop(app)
+        refreshSystemState()
+    }
 
     fun setSourceMuted(sourceKey: String, muted: Boolean) {
         notificationSettings.setMuted(sourceKey, muted)

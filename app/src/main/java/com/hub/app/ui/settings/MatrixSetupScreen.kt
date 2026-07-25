@@ -107,6 +107,7 @@ class MatrixSetupViewModel(application: Application) : AndroidViewModel(applicat
                     )
                 )
                 registry.start(MatrixConnector.SOURCE_KEY)
+                com.hub.app.connectors.ConnectorSyncService.startIfEnabled(getApplication())
                 _state.value = MatrixSetupState.Connected(userId)
                 loadContacts()
             },

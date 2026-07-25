@@ -164,6 +164,26 @@ fun SettingsScreen(
                 ) {
                     Text("E-Mail (IMAP) einrichten")
                 }
+                if (state.hasConnector) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Hintergrund-Empfang", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "Connectoren auch bei geschlossener App abfragen (zeigt eine " +
+                                    "dauerhafte, leise Hinweis-Benachrichtigung).",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = state.backgroundSyncEnabled,
+                            onCheckedChange = viewModel::setBackgroundSyncEnabled
+                        )
+                    }
+                }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
                 SectionHeader("SMS")

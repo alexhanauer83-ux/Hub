@@ -36,6 +36,8 @@ class MainActivity : FragmentActivity() {
         appLock = AppLockManager(this)
         // Gespeicherten Darstellungsmodus in den geteilten Flow laden.
         ThemeSettings(this).sync()
+        // Hintergrund-Empfang aus dem Vordergrund starten (hier ist der FGS-Start erlaubt).
+        com.hub.app.connectors.ConnectorSyncService.startIfEnabled(this)
 
         setContent {
             val themeMode by ThemeSettings.mode.collectAsStateWithLifecycle()
