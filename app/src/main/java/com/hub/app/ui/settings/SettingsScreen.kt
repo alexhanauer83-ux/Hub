@@ -55,6 +55,7 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    val themeMode by com.hub.app.ui.theme.ThemeSettings.mode.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // Beim Öffnen der Einstellungen einmalig automatisch nach einem Update suchen.
@@ -108,6 +109,13 @@ fun SettingsScreen(
                 .padding(padding)
         ) {
             item {
+                SectionHeader("Darstellung")
+                ThemeSection(
+                    current = themeMode,
+                    onSelect = { com.hub.app.ui.theme.ThemeSettings(context).mode = it }
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
                 SectionHeader("Sicherheit")
                 SecuritySection(
                     isAppLockEnabled = state.isAppLockEnabled,
@@ -304,6 +312,30 @@ private fun NotificationReplacementSection(
                     "danach nur noch eingeschränkt.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThemeSection(
+    current: com.hub.app.ui.theme.ThemeMode,
+    onSelect: (com.hub.app.ui.theme.ThemeMode) -> Unit
+) {
+    val options = listOf(
+        com.hub.app.ui.theme.ThemeMode.SYSTEM to "System",
+        com.hub.app.ui.theme.ThemeMode.LIGHT to "Hell",
+        com.hub.app.ui.theme.ThemeMode.DARK to "Dunkel"
+    )
+    androidx.compose.foundation.layout.Row(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { (mode, label) ->
+            androidx.compose.material3.FilterChip(
+                selected = current == mode,
+                onClick = { onSelect(mode) },
+                label = { Text(label) }
             )
         }
     }

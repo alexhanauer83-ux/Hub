@@ -5,6 +5,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 
 private val HubDarkColors = darkColorScheme(
     primary = HubAccent,
@@ -21,29 +22,36 @@ private val HubDarkColors = darkColorScheme(
 )
 
 private val HubLightColors = lightColorScheme(
-    primary = HubAccent,
-    onPrimary = HubLightOnSurface,
+    primary = HubLightAccent,
+    onPrimary = Color.White,
+    secondary = HubLightAccent,
     background = HubLightBackground,
     surface = HubLightSurface,
+    surfaceVariant = HubLightSurfaceVariant,
     onBackground = HubLightOnSurface,
     onSurface = HubLightOnSurface,
-    error = HubDanger
+    onSurfaceVariant = HubLightOnSurfaceMuted,
+    error = HubDanger,
+    outline = HubLightOutline
 )
 
 /**
- * Dunkles Theme ist Standard (siehe Spec: "dunkles Theme als Standard"), unabhängig vom
- * System-Theme – nur wenn der Nutzer künftig explizit "System folgen" wählt, greift
- * [isSystemInDarkTheme]. Für den MVP fest auf dark, mit optionalem useDarkTheme-Override
- * für spätere Einstellungen.
+ * Theme folgt dem gewählten [ThemeMode]: SYSTEM richtet sich nach der System-Einstellung,
+ * LIGHT/DARK erzwingen die jeweilige Darstellung. Umschalten wirkt sofort (der Aufrufer
+ * beobachtet [ThemeSettings.mode]).
  */
 @Composable
 fun HubTheme(
-    useDarkTheme: Boolean = true,
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
     content: @Composable () -> Unit
 ) {
-    val colors = if (useDarkTheme) HubDarkColors else HubLightColors
+    val useDarkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
     MaterialTheme(
-        colorScheme = colors,
+        colorScheme = if (useDarkTheme) HubDarkColors else HubLightColors,
         typography = HubTypography,
         content = content
     )

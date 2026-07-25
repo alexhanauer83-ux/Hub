@@ -17,8 +17,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.hub.app.security.AppLockManager
 import com.hub.app.ui.lock.AppLockScreen
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hub.app.ui.navigation.HubNavGraph
 import com.hub.app.ui.theme.HubTheme
+import com.hub.app.ui.theme.ThemeSettings
 
 /**
  * [FragmentActivity] statt ComponentActivity, weil BiometricPrompt (App-Lock) sich
@@ -32,9 +34,12 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         appLock = AppLockManager(this)
+        // Gespeicherten Darstellungsmodus in den geteilten Flow laden.
+        ThemeSettings(this).sync()
 
         setContent {
-            HubTheme {
+            val themeMode by ThemeSettings.mode.collectAsStateWithLifecycle()
+            HubTheme(themeMode = themeMode) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     var locked by remember { mutableStateOf(appLock.requiresUnlock()) }
 

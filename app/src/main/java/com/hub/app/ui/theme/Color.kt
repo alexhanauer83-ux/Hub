@@ -14,7 +14,12 @@ val HubAccentMuted = Color(0xFF2E4A44)
 val HubDanger = Color(0xFFE36F7A)
 val HubOutline = Color(0xFF2B2E37)
 
-// Helles Theme als Fallback (Dark ist Standard, siehe Theme.kt)
-val HubLightBackground = Color(0xFFFAFAFC)
+// Helles Theme
+val HubLightBackground = Color(0xFFF6F7F9)
 val HubLightSurface = Color(0xFFFFFFFF)
+val HubLightSurfaceVariant = Color(0xFFECEEF2)
 val HubLightOnSurface = Color(0xFF14161B)
+val HubLightOnSurfaceMuted = Color(0xFF5B616B)
+val HubLightOutline = Color(0xFFDADDE3)
+// Dunkleres Mint, damit der Akzent auf hellem Grund lesbar bleibt.
+val HubLightAccent = Color(0xFF1C9E82)
