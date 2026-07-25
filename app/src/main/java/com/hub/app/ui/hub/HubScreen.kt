@@ -143,6 +143,7 @@ fun HubScreen(
                     } else {
                         emptyHintFor(state.tab)
                     },
+                    onOpen = viewModel::openMessage,
                     onMarkRead = viewModel::markRead,
                     onArchive = viewModel::archive,
                     onUnarchive = viewModel::unarchive,
@@ -210,6 +211,7 @@ private fun MessageList(
     messages: List<MessageEntity>,
     isArchiveView: Boolean,
     emptyHint: String,
+    onOpen: (MessageEntity) -> Unit,
     onMarkRead: (String) -> Unit,
     onArchive: (String) -> Unit,
     onUnarchive: (String) -> Unit,
@@ -236,9 +238,9 @@ private fun MessageList(
                 onMarkRead = { onMarkRead(message.id) },
                 onArchive = { onArchive(message.id) },
                 onUnarchive = { onUnarchive(message.id) },
-                // Antippen markiert als gelesen; den vollen Text gibt es per Long-Press,
-                // ohne die Quell-App zu oeffnen.
-                onClick = { onMarkRead(message.id) },
+                // Antippen öffnet die Nachricht in der Quell-App (und markiert sie als
+                // gelesen); die Vorschau ohne App-Wechsel gibt es per Long-Press.
+                onClick = { onOpen(message) },
                 onLongPress = { onOpenPeek(message) }
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)

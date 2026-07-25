@@ -1,6 +1,7 @@
 package com.hub.app.ui.hub
 
 import android.app.Application
+import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hub.app.data.local.entity.MessageEntity
@@ -8,6 +9,7 @@ import com.hub.app.data.local.entity.SourceAppEntity
 import com.hub.app.data.repository.MessageRepository
 import com.hub.app.data.source.ReplyTarget
 import com.hub.app.di.ServiceLocator
+import com.hub.app.notification.ContentIntentRegistry
 import com.hub.app.notification.NotificationAccess
 import com.hub.app.notification.NotificationMessageSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -133,6 +135,28 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resetQuickReplyState() { _quickReplyState.value = QuickReplyState.Idle }
+
+    /**
+     * Öffnet die Nachricht in der Quell-App: bevorzugt über den gemerkten contentIntent
+     * (springt direkt in den Chat), sonst als Rückfall über den Launch-Intent der App
+     * (öffnet nur die App). Markiert die Nachricht dabei als gelesen.
+     */
+    fun openMessage(message: MessageEntity) {
+        val context = getApplication<Application>()
+        val opened = ContentIntentRegistry.get(message.id)?.let { pendingIntent ->
+            runCatching { pendingIntent.send() }.isSuccess
+        } ?: false
+
+        if (!opened) {
+            message.sourcePackageName
+                ?.let { context.packageManager.getLaunchIntentForPackage(it) }
+                ?.let { intent ->
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    runCatching { context.startActivity(intent) }
+                }
+        }
+        markRead(message.id)
+    }
 
     fun markRead(id: String) = viewModelScope.launch { repository.markRead(id) }
     fun archive(id: String) = viewModelScope.launch { repository.archive(id) }

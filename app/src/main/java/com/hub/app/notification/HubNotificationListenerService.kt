@@ -52,6 +52,7 @@ class HubNotificationListenerService : NotificationListenerService() {
         super.onListenerDisconnected()
         isConnected = false
         QuickReplyRegistry.clear()
+        ContentIntentRegistry.clear()
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
@@ -60,8 +61,9 @@ class HubNotificationListenerService : NotificationListenerService() {
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         // Die Nachricht bleibt im Hub erhalten (das ist der Sinn eines Hubs), aber die
-        // Quick-Reply-PendingIntent ist ab jetzt ungültig.
+        // PendingIntents (Quick Reply, contentIntent) sind ab jetzt ungültig.
         QuickReplyRegistry.removeByNotificationKey(sbn.key)
+        ContentIntentRegistry.removeByNotificationKey(sbn.key)
     }
 
     private fun handleNotification(sbn: StatusBarNotification) {
@@ -87,6 +89,12 @@ class HubNotificationListenerService : NotificationListenerService() {
                 if (!repository.isSourceEnabled(incoming.sourceKey)) return@runCatching
 
                 repository.ingest(withAttachments(sbn, incoming))
+
+                // contentIntent merken, damit ein Tipp auf die Nachricht die App an der
+                // richtigen Stelle öffnet (siehe HubViewModel.openMessage).
+                sbn.notification.contentIntent?.let { pi ->
+                    ContentIntentRegistry.register(incoming.stableId, sbn.key, pi)
+                }
 
                 QuickReplyRegistry.findRemoteInputAction(sbn.notification)?.let { candidate ->
                     QuickReplyRegistry.register(
