@@ -2,6 +2,7 @@ package com.hub.app.ui.hub
 
 import android.app.Application
 import android.content.Intent
+import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hub.app.data.local.entity.MessageEntity
@@ -143,9 +144,17 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun openMessage(message: MessageEntity) {
         val context = getApplication<Application>()
-        val opened = ContentIntentRegistry.get(message.id)?.let { pendingIntent ->
-            runCatching { pendingIntent.send() }.isSuccess
-        } ?: false
+
+        val pendingIntent = ContentIntentRegistry.get(message.id)
+        // Ab Android 12 (S) blockiert das System "Notification-Trampolines": Feuert eine
+        // Fremd-App den contentIntent nicht selbst, sondern wir, darf ein Umweg über
+        // Broadcast/Service KEINE Activity mehr starten - der Tipp bliebe wirkungslos.
+        // Deshalb den contentIntent nur nutzen, wenn er direkt eine Activity öffnet;
+        // sonst gleich die App per Launch-Intent starten.
+        val usable = pendingIntent != null &&
+            (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || pendingIntent.isActivity)
+
+        val opened = usable && runCatching { pendingIntent!!.send() }.isSuccess
 
         if (!opened) {
             message.sourcePackageName
