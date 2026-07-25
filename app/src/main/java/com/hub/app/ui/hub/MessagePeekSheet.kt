@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
@@ -25,7 +26,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.hub.app.data.local.entity.MessageEntity
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -86,9 +90,27 @@ fun MessagePeekSheet(
                     MaterialTheme.colorScheme.onSurface
                 },
                 modifier = Modifier
-                    .heightIn(max = 320.dp)
+                    .heightIn(max = 220.dp)
                     .verticalScroll(rememberScrollState())
             )
+
+            message.imageUri?.let { uri ->
+                Spacer(Modifier.height(16.dp))
+                AsyncImage(
+                    model = uri,
+                    contentDescription = "Bildanhang",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 320.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                )
+            }
+
+            message.audioUri?.let { uri ->
+                Spacer(Modifier.height(16.dp))
+                AudioPlayer(audioUri = uri)
+            }
 
             Spacer(Modifier.height(20.dp))
 

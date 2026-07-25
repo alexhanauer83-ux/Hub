@@ -120,8 +120,44 @@ object NotificationParser {
             normalized.length < 40
     }
 
+    /** Rohe, noch nicht persistierte Anhänge einer Benachrichtigung. */
+    data class RawAttachments(
+        val picture: android.graphics.Bitmap?,
+        val dataUri: android.net.Uri?,
+        val dataMime: String?
+    )
+
+    /**
+     * Findet Anhänge in einer Benachrichtigung:
+     *  - `EXTRA_PICTURE` (BigPictureStyle) liefert eine Bitmap direkt.
+     *  - MessagingStyle-Nachrichten können über "uri"/"type" ein Bild oder Audio anhängen;
+     *    die URI ist eine Content-URI der Quell-App und wird später lokal kopiert.
+     */
+    fun extractAttachments(sbn: StatusBarNotification): RawAttachments {
+        val extras = sbn.notification.extras
+        val picture = extras.parcelable<android.graphics.Bitmap>(Notification.EXTRA_PICTURE)
+        val (uri, mime) = latestMessagingData(extras)
+        return RawAttachments(picture, uri, mime)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun latestMessagingData(extras: Bundle): Pair<android.net.Uri?, String?> {
+        val messages = extras.parcelableArray(Notification.EXTRA_MESSAGES) ?: return null to null
+        val bundleWithData = messages.filterIsInstance<Bundle>().lastOrNull { it.get("uri") != null }
+            ?: return null to null
+        val uri = bundleWithData.parcelable<android.net.Uri>("uri")
+        val mime = bundleWithData.getString("type")
+        return uri to mime
+    }
+
     private fun Bundle.charSequenceValue(key: String): CharSequence? =
         getCharSequence(key)?.takeIf { it.isNotBlank() }
+
+    // Bewusst die deprecatete, untypisierte Variante: Der typisierte getParcelable(key, Class)
+    // braucht die konkrete Zielklasse; hier reicht der anschliessende as?-Cast, und die
+    // Funktion bleibt fuer beliebige Parcelable-Typen (Bitmap, Uri) nutzbar.
+    @Suppress("DEPRECATION", "UNCHECKED_CAST")
+    private fun <T> Bundle.parcelable(key: String): T? = getParcelable(key) as? T
 
     @Suppress("DEPRECATION")
     private fun Bundle.parcelableArray(key: String): Array<out android.os.Parcelable>? =

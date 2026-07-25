@@ -36,6 +36,7 @@ class HubNotificationListenerService : NotificationListenerService() {
     // SQLCipher-Datenbank. onCreate laeuft auf dem Main-Thread - so passiert das
     // stattdessen in der IO-Coroutine von handleNotification.
     private val repository: MessageRepository by lazy { ServiceLocator.messageRepository(this) }
+    private val attachmentStore: AttachmentStore by lazy { AttachmentStore(this) }
 
     override fun onListenerConnected() {
         super.onListenerConnected()
@@ -85,7 +86,7 @@ class HubNotificationListenerService : NotificationListenerService() {
                 )
                 if (!repository.isSourceEnabled(incoming.sourceKey)) return@runCatching
 
-                repository.ingest(incoming)
+                repository.ingest(withAttachments(sbn, incoming))
 
                 QuickReplyRegistry.findRemoteInputAction(sbn.notification)?.let { candidate ->
                     QuickReplyRegistry.register(
@@ -100,6 +101,35 @@ class HubNotificationListenerService : NotificationListenerService() {
                 }
             }.onFailure { Log.w(TAG, "Notification konnte nicht verarbeitet werden", it) }
         }
+    }
+
+    /**
+     * Extrahiert Bild-/Audioanhänge der Benachrichtigung, kopiert sie lokal und hängt die
+     * lokalen URIs an die Nachricht. Läuft bereits im IO-Kontext (Aufrufer ist eine
+     * IO-Coroutine), daher ist der Datei-/ContentResolver-Zugriff hier zulässig.
+     */
+    private fun withAttachments(sbn: StatusBarNotification, incoming: com.hub.app.data.source.IncomingMessage): com.hub.app.data.source.IncomingMessage {
+        val raw = NotificationParser.extractAttachments(sbn)
+        var imageUri: String? = null
+        var audioUri: String? = null
+
+        if (raw.picture != null) {
+            imageUri = attachmentStore.saveBitmap(incoming.stableId, raw.picture)
+        }
+        val uri = raw.dataUri
+        val mime = raw.dataMime
+        if (uri != null && mime != null) {
+            val ext = mime.substringAfter('/', "").ifBlank { if (mime.startsWith("audio")) "audio" else "img" }
+            when {
+                mime.startsWith("image/") ->
+                    imageUri = imageUri ?: attachmentStore.saveFromUri(incoming.stableId, uri, isAudio = false, extension = ext)
+                mime.startsWith("audio/") ->
+                    audioUri = attachmentStore.saveFromUri(incoming.stableId, uri, isAudio = true, extension = ext)
+            }
+        }
+
+        return if (imageUri == null && audioUri == null) incoming
+        else incoming.copy(imageUri = imageUri, audioUri = audioUri)
     }
 
     private fun appLabel(packageName: String): String = appLabelCache.getOrPut(packageName) {

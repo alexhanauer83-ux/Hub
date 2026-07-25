@@ -53,5 +53,9 @@ data class MessageEntity(
     val isContentRedacted: Boolean = false,
     /** true, wenn zu dieser Nachricht eine RemoteInput-Quick-Reply-Action existiert */
     val hasQuickReply: Boolean = false,
-    val iconUri: String? = null
+    val iconUri: String? = null,
+    /** Lokale file://-URI eines Bildanhangs (aus der Benachrichtigung extrahiert), sonst null. */
+    val imageUri: String? = null,
+    /** Lokale file://-URI eines Audioanhangs, sofern die App ihn mitgeliefert hat, sonst null. */
+    val audioUri: String? = null
 )

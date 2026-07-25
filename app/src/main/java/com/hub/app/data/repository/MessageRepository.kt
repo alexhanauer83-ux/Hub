@@ -47,7 +47,11 @@ class MessageRepository(
                 priority = existing?.priority ?: sourcePriority,
                 isContentRedacted = message.isContentRedacted,
                 hasQuickReply = message.hasQuickReply,
-                iconUri = message.iconUri
+                iconUri = message.iconUri,
+                // Anhänge: neu gelieferte bevorzugen, sonst bereits gespeicherte behalten
+                // (ein erneutes Einlesen ohne Anhang soll ein vorhandenes Bild nicht löschen).
+                imageUri = message.imageUri ?: existing?.imageUri,
+                audioUri = message.audioUri ?: existing?.audioUri
             )
         )
     }

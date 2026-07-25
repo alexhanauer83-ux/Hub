@@ -19,7 +19,9 @@ import com.hub.app.data.local.entity.SourceAppEntity
  */
 @Database(
     entities = [MessageEntity::class, SourceAppEntity::class, PriorityContactEntity::class],
-    version = 1,
+    // v2: imageUri/audioUri in MessageEntity. Migration ist destruktiv
+    // (fallbackToDestructiveMigration), da die DB nur ein lokaler Nachrichten-Cache ist.
+    version = 2,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
