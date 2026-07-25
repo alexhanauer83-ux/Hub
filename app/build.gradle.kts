@@ -21,10 +21,34 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Release-Signatur aus Umgebungsvariablen (CI) oder gradle.properties (lokal).
+    // Ohne diese Werte bleibt der Release-Build unsigniert - fuer die Verteilung ueber
+    // GitHub/Obtainium MUSS er signiert sein, und zwar stets mit DEMSELBEN Keystore,
+    // sonst verweigert Android das Update ueber die alte Version.
+    val keystorePath: String? = System.getenv("KEYSTORE_FILE")
+        ?: (project.findProperty("KEYSTORE_FILE") as String?)
+
+    signingConfigs {
+        create("release") {
+            if (keystorePath != null) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                    ?: project.findProperty("KEYSTORE_PASSWORD") as String?
+                keyAlias = System.getenv("KEY_ALIAS")
+                    ?: project.findProperty("KEY_ALIAS") as String?
+                keyPassword = System.getenv("KEY_PASSWORD")
+                    ?: project.findProperty("KEY_PASSWORD") as String?
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Minify bewusst aus: ohne getestete Proguard-Keep-Regeln koennten R8-
+            // Optimierungen Retrofit/Moshi/Room zur Laufzeit brechen. Reines Sideloading,
+            // Groesse ist zweitrangig gegenueber Zuverlaessigkeit.
+            isMinifyEnabled = false
+            if (keystorePath != null) signingConfig = signingConfigs.getByName("release")
         }
         debug {
             isMinifyEnabled = false
