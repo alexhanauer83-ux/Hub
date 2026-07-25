@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -56,7 +57,11 @@ sealed interface MatrixSetupState {
     data class Connected(
         val userId: String,
         val contacts: List<MatrixConnector.MatrixContact> = emptyList(),
-        val contactsLoading: Boolean = false
+        val contactsLoading: Boolean = false,
+        /** Aktuell zum Schreiben ausgewählter Raum (Compose-Ziel). */
+        val composeTarget: MatrixConnector.MatrixContact? = null,
+        /** Kurze Rückmeldung zu einer Aktion (gesendet, verlassen, Fehler). */
+        val actionStatus: String? = null
     ) : MatrixSetupState
 }
 
@@ -118,6 +123,39 @@ class MatrixSetupViewModel(application: Application) : AndroidViewModel(applicat
         (_state.value as? MatrixSetupState.Connected)?.let {
             _state.value = it.copy(contacts = contacts, contactsLoading = false)
         }
+    }
+
+    fun selectComposeTarget(contact: MatrixConnector.MatrixContact?) =
+        updateConnected { it.copy(composeTarget = contact, actionStatus = null) }
+
+    fun sendToRoom(roomId: String, text: String) = viewModelScope.launch {
+        val status = connector.sendToRoom(roomId, text).fold(
+            onSuccess = { "Gesendet" },
+            onFailure = { it.message ?: "Senden fehlgeschlagen" }
+        )
+        updateConnected { it.copy(actionStatus = status, composeTarget = null) }
+    }
+
+    fun startDirectChat(userId: String) = viewModelScope.launch {
+        val status = connector.startDirectChat(userId).fold(
+            onSuccess = { "Chat mit $userId angelegt" },
+            onFailure = { it.message ?: "Chat konnte nicht angelegt werden" }
+        )
+        updateConnected { it.copy(actionStatus = status) }
+        loadContacts()
+    }
+
+    fun leaveRoom(roomId: String) = viewModelScope.launch {
+        val status = connector.leaveRoom(roomId).fold(
+            onSuccess = { "Raum verlassen" },
+            onFailure = { it.message ?: "Verlassen fehlgeschlagen" }
+        )
+        updateConnected { it.copy(actionStatus = status, composeTarget = null) }
+        loadContacts()
+    }
+
+    private fun updateConnected(transform: (MatrixSetupState.Connected) -> MatrixSetupState.Connected) {
+        (_state.value as? MatrixSetupState.Connected)?.let { _state.value = transform(it) }
     }
 
     fun disconnect() {
@@ -184,6 +222,10 @@ fun MatrixSetupScreen(
                 is MatrixSetupState.Connected -> ConnectedContent(
                     state = current,
                     onReloadContacts = viewModel::loadContacts,
+                    onNewChat = viewModel::startDirectChat,
+                    onLeave = viewModel::leaveRoom,
+                    onSelectTarget = viewModel::selectComposeTarget,
+                    onSend = viewModel::sendToRoom,
                     onDisconnect = viewModel::disconnect
                 )
 
@@ -243,21 +285,97 @@ fun MatrixSetupScreen(
 private fun ConnectedContent(
     state: MatrixSetupState.Connected,
     onReloadContacts: () -> Unit,
+    onNewChat: (String) -> Unit,
+    onLeave: (String) -> Unit,
+    onSelectTarget: (MatrixConnector.MatrixContact?) -> Unit,
+    onSend: (String, String) -> Unit,
     onDisconnect: () -> Unit
 ) {
+    var newChatUser by remember { mutableStateOf("") }
+    var messageText by remember { mutableStateOf("") }
+
     Column {
+        // --- Konto ---
         Text("Angemeldet als", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(state.userId, style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(8.dp))
         TextButton(onClick = onDisconnect) { Text("Abmelden") }
 
+        state.actionStatus?.let {
+            Spacer(Modifier.height(4.dp))
+            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+        }
+
         Spacer(Modifier.height(16.dp))
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         Spacer(Modifier.height(16.dp))
 
+        // --- Nachricht schreiben ---
+        Text("Nachricht schreiben", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(8.dp))
+        val target = state.composeTarget
+        if (target == null) {
+            Text(
+                "Wähle unten einen Chat aus, um zu schreiben.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Text("An: ${target.name}", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = messageText,
+                onValueChange = { messageText = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Nachricht") },
+                maxLines = 4
+            )
+            Spacer(Modifier.height(8.dp))
+            Row {
+                Button(
+                    onClick = {
+                        onSend(target.roomId, messageText)
+                        messageText = ""
+                    },
+                    enabled = messageText.isNotBlank()
+                ) { Text("Senden") }
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = { onSelectTarget(null) }) { Text("Abbrechen") }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        Spacer(Modifier.height(16.dp))
+
+        // --- Neuer Chat ---
+        Text("Neuer Chat", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = newChatUser,
+            onValueChange = { newChatUser = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Matrix-ID (z. B. @alice:matrix.org)") },
+            singleLine = true
+        )
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = {
+                onNewChat(newChatUser)
+                newChatUser = ""
+            },
+            enabled = newChatUser.startsWith("@") && newChatUser.contains(":")
+        ) { Text("Chat starten") }
+
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        Spacer(Modifier.height(16.dp))
+
+        // --- Kontakte / Chats verwalten ---
         Row(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
         ) {
             Text("Kontakte / Chats", style = MaterialTheme.typography.titleMedium)
             TextButton(onClick = onReloadContacts) { Text("Aktualisieren") }
@@ -275,7 +393,7 @@ private fun ConnectedContent(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = 4.dp),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
                 ) {
                     Icon(
@@ -284,7 +402,24 @@ private fun ConnectedContent(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(Modifier.width(12.dp))
-                    Text(contact.name, style = MaterialTheme.typography.bodyLarge)
+                    // Tippen wählt den Chat als Schreib-Ziel.
+                    TextButton(
+                        onClick = { onSelectTarget(contact) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            contact.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    IconButton(onClick = { onLeave(contact.roomId) }) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "Verlassen",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         }

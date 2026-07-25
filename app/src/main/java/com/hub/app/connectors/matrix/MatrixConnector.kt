@@ -83,7 +83,12 @@ class MatrixConnector(
                 return@runCatching storeFromRegister(base, first.body())
             }
             if (first.code() != 401) {
-                throw IllegalStateException(errorMessage(first.errorBody()?.string(), "Registrierung fehlgeschlagen"))
+                // Viele Server (u. a. matrix.org) deaktivieren die API-Registrierung.
+                val serverMsg = errorMessage(first.errorBody()?.string(), "Registrierung fehlgeschlagen")
+                throw IllegalStateException(
+                    "$serverMsg\n\nDieser Homeserver erlaubt keine Registrierung über Hub. " +
+                        "Lege dein Konto beim Anbieter (z. B. Element/Website) an und melde dich hier mit „Anmelden" an."
+                )
             }
 
             val uia = first.errorBody()?.string()?.let { runCatching { uiaAdapter.fromJson(it) }.getOrNull() }
@@ -118,6 +123,25 @@ class MatrixConnector(
     // --- Kontakte / Räume ----------------------------------------------------
 
     data class MatrixContact(val roomId: String, val name: String)
+
+    /** Startet einen Direkt-Chat mit einer Matrix-User-ID (z. B. @alice:matrix.org). */
+    suspend fun startDirectChat(userId: String): Result<String> = runCatching {
+        val (base, token) = requireSession()
+        val api = buildApi(base)
+        api.createRoom(bearer(token), CreateRoomRequest(invite = listOf(userId.trim()))).roomId
+    }
+
+    /** Verlässt einen Raum (Kontakt entfernen/aufräumen). */
+    suspend fun leaveRoom(roomId: String): Result<Unit> = runCatching {
+        val (base, token) = requireSession()
+        val api = buildApi(base)
+        val response = api.leaveRoom(bearer(token), roomId, emptyMap())
+        if (!response.isSuccessful) throw IllegalStateException("Raum konnte nicht verlassen werden")
+    }
+
+    /** Sendet eine Nachricht in einen Raum (Compose/„Neue Nachricht"). */
+    suspend fun sendToRoom(roomId: String, text: String): Result<Unit> =
+        sendReply(ReplyTarget(messageId = "", conversationId = roomId), text)
 
     /** Beigetretene Räume als "Kontakte/Chats" – jeweils mit Anzeigenamen (sofern gesetzt). */
     suspend fun fetchContacts(): Result<List<MatrixContact>> = runCatching {

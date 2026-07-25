@@ -109,15 +109,40 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { repository.setSourcePriority(sourceKey, isPriority) }
 
     /**
-     * Ob für diese Nachricht gerade geantwortet werden kann. Wird pro Peek-Öffnung
-     * abgefragt, weil die zugrundeliegende PendingIntent jederzeit ungültig werden kann.
+     * Wählt die richtige [com.hub.app.data.source.MessageSource] für die Antwort anhand des
+     * Quell-Schlüssels: API-Connectoren (Matrix/Telegram) antworten über ihre API, SMS über
+     * den SmsManager, alles andere (WhatsApp, Signal … via Benachrichtigung) über den
+     * RemoteInput-Weg des Notification-Listeners.
      */
-    fun canQuickReply(message: MessageEntity): Boolean =
-        message.hasQuickReply && notificationSource.canReplyTo(message.id)
+    private fun replySourceFor(message: MessageEntity): com.hub.app.data.source.MessageSource =
+        when (message.sourceKey) {
+            com.hub.app.connectors.matrix.MatrixConnector.SOURCE_KEY ->
+                ServiceLocator.matrixConnector(getApplication())
+            com.hub.app.connectors.telegram.TelegramBotConnector.SOURCE_KEY ->
+                ServiceLocator.telegramConnector(getApplication())
+            com.hub.app.sms.SmsMessageSource.SOURCE_KEY -> smsSource
+            else -> notificationSource
+        }
 
-    fun sendQuickReply(message: MessageEntity, text: String) = viewModelScope.launch {
+    private val smsSource by lazy { com.hub.app.sms.SmsMessageSource(getApplication()) }
+
+    /**
+     * Ob für diese Nachricht gerade geantwortet werden kann. Für Connectoren genügt eine
+     * bekannte Konversation; beim Notification-Weg muss zusätzlich eine gültige
+     * RemoteInput-Action vorliegen (kann jederzeit ungültig werden).
+     */
+    fun canReply(message: MessageEntity): Boolean = when (message.sourceKey) {
+        com.hub.app.connectors.matrix.MatrixConnector.SOURCE_KEY ->
+            ServiceLocator.matrixConnector(getApplication()).isConfigured() && message.conversationId != null
+        com.hub.app.connectors.telegram.TelegramBotConnector.SOURCE_KEY ->
+            ServiceLocator.telegramConnector(getApplication()).isConfigured() && message.conversationId != null
+        com.hub.app.sms.SmsMessageSource.SOURCE_KEY -> smsSource.hasSendPermission()
+        else -> message.hasQuickReply && notificationSource.canReplyTo(message.id)
+    }
+
+    fun sendReply(message: MessageEntity, text: String) = viewModelScope.launch {
         _quickReplyState.value = QuickReplyState.Sending
-        val result = notificationSource.sendReply(
+        val result = replySourceFor(message).sendReply(
             ReplyTarget(messageId = message.id, conversationId = message.conversationId),
             text
         )

@@ -54,6 +54,20 @@ interface MatrixApi {
     @GET("_matrix/client/v3/joined_rooms")
     suspend fun joinedRooms(@Header("Authorization") auth: String): JoinedRoomsResponse
 
+    /** Legt einen (Direkt-)Raum an und lädt optional Nutzer ein – Grundlage für "Neuer Chat". */
+    @POST("_matrix/client/v3/createRoom")
+    suspend fun createRoom(
+        @Header("Authorization") auth: String,
+        @Body body: CreateRoomRequest
+    ): CreateRoomResponse
+
+    @POST("_matrix/client/v3/rooms/{roomId}/leave")
+    suspend fun leaveRoom(
+        @Header("Authorization") auth: String,
+        @Path("roomId") roomId: String,
+        @Body body: Map<String, String> = emptyMap()
+    ): retrofit2.Response<okhttp3.ResponseBody>
+
     @GET("_matrix/client/v3/rooms/{roomId}/state/m.room.name/")
     suspend fun roomName(
         @Header("Authorization") auth: String,
@@ -174,6 +188,16 @@ data class SendResponse(@Json(name = "event_id") val eventId: String?)
 
 @JsonClass(generateAdapter = true)
 data class JoinedRoomsResponse(@Json(name = "joined_rooms") val joinedRooms: List<String> = emptyList())
+
+@JsonClass(generateAdapter = true)
+data class CreateRoomRequest(
+    val invite: List<String> = emptyList(),
+    @Json(name = "is_direct") val isDirect: Boolean = true,
+    val preset: String = "trusted_private_chat"
+)
+
+@JsonClass(generateAdapter = true)
+data class CreateRoomResponse(@Json(name = "room_id") val roomId: String)
 
 @JsonClass(generateAdapter = true)
 data class RoomNameResponse(val name: String? = null)

@@ -43,7 +43,8 @@ fun HubNavGraph(navController: NavHostController = rememberNavController()) {
         composable(Destinations.HUB) {
             HubScreen(
                 onOpenOnboarding = { navController.navigate(Destinations.ONBOARDING) },
-                onOpenSettings = { navController.navigate(Destinations.SETTINGS) }
+                onOpenSettings = { navController.navigate(Destinations.SETTINGS) },
+                onOpenMatrix = { navController.navigate(Destinations.MATRIX_SETUP) }
             )
         }
         composable(Destinations.SETTINGS) {

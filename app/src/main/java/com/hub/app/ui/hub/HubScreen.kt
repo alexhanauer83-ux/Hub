@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
@@ -45,12 +46,14 @@ import kotlinx.coroutines.launch
 fun HubScreen(
     onOpenOnboarding: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenMatrix: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: HubViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val quickReplyState by viewModel.quickReplyState.collectAsStateWithLifecycle()
     var peekMessage by remember { mutableStateOf<MessageEntity?>(null) }
+    var replyMessage by remember { mutableStateOf<MessageEntity?>(null) }
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -105,6 +108,13 @@ fun HubScreen(
                                 }
                             )
                         }
+                        IconButton(onClick = onOpenMatrix) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.Chat,
+                                contentDescription = "Matrix",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         IconButton(onClick = onOpenSettings) {
                             Icon(
                                 Icons.Default.Settings,
@@ -144,6 +154,7 @@ fun HubScreen(
                         emptyHintFor(state.tab)
                     },
                     onOpen = viewModel::openMessage,
+                    onReply = { replyMessage = it },
                     onMarkRead = viewModel::markRead,
                     onArchive = viewModel::archive,
                     onUnarchive = viewModel::unarchive,
@@ -156,7 +167,7 @@ fun HubScreen(
     peekMessage?.let { message ->
         // Verfügbarkeit der Antwort-Action einmal pro Öffnen prüfen, nicht bei jeder
         // Recomposition - der Zustand kann sich nur zwischen zwei Peeks ändern.
-        val canReply = remember(message.id) { viewModel.canQuickReply(message) }
+        val canReply = remember(message.id) { viewModel.canReply(message) }
         val closePeek = {
             peekMessage = null
             viewModel.resetQuickReplyState()
@@ -166,7 +177,7 @@ fun HubScreen(
             message = message,
             canQuickReply = canReply,
             quickReplyState = quickReplyState,
-            onSendQuickReply = { text -> viewModel.sendQuickReply(message, text) },
+            onSendQuickReply = { text -> viewModel.sendReply(message, text) },
             onDismiss = closePeek,
             onMarkRead = {
                 viewModel.markRead(message.id)
@@ -183,6 +194,18 @@ fun HubScreen(
             onAlwaysPrioritizeSender = {
                 viewModel.addPriorityContact(message)
                 closePeek()
+            }
+        )
+    }
+
+    replyMessage?.let { message ->
+        ReplySheet(
+            message = message,
+            state = quickReplyState,
+            onSend = { text -> viewModel.sendReply(message, text) },
+            onDismiss = {
+                replyMessage = null
+                viewModel.resetQuickReplyState()
             }
         )
     }
@@ -212,6 +235,7 @@ private fun MessageList(
     isArchiveView: Boolean,
     emptyHint: String,
     onOpen: (MessageEntity) -> Unit,
+    onReply: (MessageEntity) -> Unit,
     onMarkRead: (String) -> Unit,
     onArchive: (String) -> Unit,
     onUnarchive: (String) -> Unit,
@@ -241,7 +265,8 @@ private fun MessageList(
                 // Antippen öffnet die Nachricht in der Quell-App (und markiert sie als
                 // gelesen); die Vorschau ohne App-Wechsel gibt es per Long-Press.
                 onClick = { onOpen(message) },
-                onLongPress = { onOpenPeek(message) }
+                onLongPress = { onOpenPeek(message) },
+                onReply = { onReply(message) }
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         }

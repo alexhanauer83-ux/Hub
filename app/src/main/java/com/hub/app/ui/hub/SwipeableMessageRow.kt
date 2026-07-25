@@ -38,6 +38,7 @@ fun SwipeableMessageRow(
     onUnarchive: () -> Unit,
     onClick: () -> Unit,
     onLongPress: () -> Unit,
+    onReply: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val currentOnMarkRead by rememberUpdatedState(onMarkRead)
@@ -73,7 +74,8 @@ fun SwipeableMessageRow(
         MessageRow(
             message = message,
             onClick = onClick,
-            onLongPress = onLongPress
+            onLongPress = onLongPress,
+            onReply = onReply
         )
     }
 }
