@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.hub.app.data.local.entity.MessageEntity
 import com.hub.app.data.local.entity.SourceAppEntity
 import com.hub.app.data.repository.MessageRepository
+import com.hub.app.data.source.ReplyTarget
 import com.hub.app.di.ServiceLocator
 import com.hub.app.notification.NotificationAccess
+import com.hub.app.notification.NotificationMessageSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,8 +35,13 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: MessageRepository = ServiceLocator.messageRepository(application)
 
+    private val notificationSource = NotificationMessageSource(application)
+
     private val _tab = MutableStateFlow(HubTab.ALLE)
     val tab: StateFlow<HubTab> = _tab.asStateFlow()
+
+    private val _quickReplyState = MutableStateFlow<QuickReplyState>(QuickReplyState.Idle)
+    val quickReplyState: StateFlow<QuickReplyState> = _quickReplyState.asStateFlow()
 
     private val _sourceFilter = MutableStateFlow<String?>(null)
     private val _hasNotificationAccess = MutableStateFlow(NotificationAccess.isGranted(application))
@@ -88,6 +95,35 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setSourcePriority(sourceKey: String, isPriority: Boolean) =
         viewModelScope.launch { repository.setSourcePriority(sourceKey, isPriority) }
+
+    /**
+     * Ob für diese Nachricht gerade geantwortet werden kann. Wird pro Peek-Öffnung
+     * abgefragt, weil die zugrundeliegende PendingIntent jederzeit ungültig werden kann.
+     */
+    fun canQuickReply(message: MessageEntity): Boolean =
+        message.hasQuickReply && notificationSource.canReplyTo(message.id)
+
+    fun sendQuickReply(message: MessageEntity, text: String) = viewModelScope.launch {
+        _quickReplyState.value = QuickReplyState.Sending
+        val result = notificationSource.sendReply(
+            ReplyTarget(messageId = message.id, conversationId = message.conversationId),
+            text
+        )
+        _quickReplyState.value = result.fold(
+            onSuccess = {
+                // Wer antwortet, hat gelesen.
+                repository.markRead(message.id)
+                QuickReplyState.Sent
+            },
+            onFailure = { error ->
+                QuickReplyState.Failed(
+                    error.message ?: "Antwort konnte nicht zugestellt werden."
+                )
+            }
+        )
+    }
+
+    fun resetQuickReplyState() { _quickReplyState.value = QuickReplyState.Idle }
 
     fun markRead(id: String) = viewModelScope.launch { repository.markRead(id) }
     fun archive(id: String) = viewModelScope.launch { repository.archive(id) }

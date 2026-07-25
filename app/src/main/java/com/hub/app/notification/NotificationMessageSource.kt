@@ -3,6 +3,7 @@ package com.hub.app.notification
 import android.content.Context
 import com.hub.app.data.source.MessageIngestSink
 import com.hub.app.data.source.MessageSource
+import com.hub.app.data.source.ReplyTarget
 import com.hub.app.data.source.SourceCapability
 import com.hub.app.data.source.SourceQuality
 
@@ -40,6 +41,14 @@ class NotificationMessageSource(
 
     fun isAvailable(): Boolean = NotificationAccess.isGranted(context)
 
-    // sendReply wird in Phase 4 über QuickReplySender/RemoteInput implementiert; bis dahin
-    // greift die Default-Implementierung aus MessageSource (nicht unterstützt).
+    override suspend fun sendReply(target: ReplyTarget, text: String): Result<Unit> =
+        QuickReplySender.send(context, target.messageId, text)
+
+    /**
+     * Ob für diese Nachricht *jetzt* geantwortet werden kann. Reicht nicht,
+     * [com.hub.app.data.local.entity.MessageEntity.hasQuickReply] zu prüfen: Das Flag
+     * beschreibt nur, dass die Notification einmal eine Reply-Action hatte – die
+     * zugehörige PendingIntent kann inzwischen weg sein (siehe [QuickReplyRegistry]).
+     */
+    fun canReplyTo(messageId: String): Boolean = QuickReplyRegistry.get(messageId) != null
 }

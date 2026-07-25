@@ -44,7 +44,10 @@ fun MessagePeekSheet(
     onMarkRead: () -> Unit,
     onArchive: () -> Unit,
     onTogglePriority: () -> Unit,
-    onAlwaysPrioritizeSender: () -> Unit
+    onAlwaysPrioritizeSender: () -> Unit,
+    canQuickReply: Boolean,
+    quickReplyState: QuickReplyState,
+    onSendQuickReply: (String) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -103,6 +106,20 @@ fun MessagePeekSheet(
 
             TextButton(onClick = onAlwaysPrioritizeSender) {
                 Text("„${message.sender}“ immer priorisieren")
+            }
+
+            if (canQuickReply) {
+                Spacer(Modifier.height(8.dp))
+                QuickReplyBar(state = quickReplyState, onSend = onSendQuickReply)
+            } else if (message.hasQuickReply) {
+                // Die Notification hatte einmal eine Antwort-Action, die PendingIntent ist
+                // aber nicht mehr gueltig (Notification verworfen oder Geraet neu gestartet).
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Direktantwort nicht mehr möglich – öffne die App, um zu antworten.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

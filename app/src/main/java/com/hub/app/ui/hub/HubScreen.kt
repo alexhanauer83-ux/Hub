@@ -41,6 +41,7 @@ fun HubScreen(
     viewModel: HubViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val quickReplyState by viewModel.quickReplyState.collectAsStateWithLifecycle()
     var peekMessage by remember { mutableStateOf<MessageEntity?>(null) }
 
     Scaffold(
@@ -103,24 +104,35 @@ fun HubScreen(
     }
 
     peekMessage?.let { message ->
+        // Verfügbarkeit der Antwort-Action einmal pro Öffnen prüfen, nicht bei jeder
+        // Recomposition - der Zustand kann sich nur zwischen zwei Peeks ändern.
+        val canReply = remember(message.id) { viewModel.canQuickReply(message) }
+        val closePeek = {
+            peekMessage = null
+            viewModel.resetQuickReplyState()
+        }
+
         MessagePeekSheet(
             message = message,
-            onDismiss = { peekMessage = null },
+            canQuickReply = canReply,
+            quickReplyState = quickReplyState,
+            onSendQuickReply = { text -> viewModel.sendQuickReply(message, text) },
+            onDismiss = closePeek,
             onMarkRead = {
                 viewModel.markRead(message.id)
-                peekMessage = null
+                closePeek()
             },
             onArchive = {
                 viewModel.archive(message.id)
-                peekMessage = null
+                closePeek()
             },
             onTogglePriority = {
                 viewModel.setPriority(message.id, !message.priority)
-                peekMessage = null
+                closePeek()
             },
             onAlwaysPrioritizeSender = {
                 viewModel.addPriorityContact(message)
-                peekMessage = null
+                closePeek()
             }
         )
     }
