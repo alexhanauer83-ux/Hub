@@ -6,6 +6,18 @@
          ausschliesslich der Notification-Listener-Zugriff unten. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Phase 5, OPTIONAL: nur relevant, wenn der Nutzer Hub bewusst zur Standard-SMS-App
+         macht. Ohne die Rolle bleiben diese Berechtigungen ungenutzt; READ_SMS/SEND_SMS
+         werden zusaetzlich zur Laufzeit abgefragt.
+         android:required="false" beim Telefonie-Feature, damit die App auch auf Geraeten
+         ohne Mobilfunk (Tablets) installierbar bleibt. -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.SEND_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_MMS" />
+    <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
+
     <!-- QUERY_ALL_PACKAGES waere fuer App-Namen/Icons bequem, wird hier aber bewusst
          NICHT angefordert: Der NotificationListenerService liefert den Paketnamen der
          Quell-App ohnehin, und der Zugriff auf deren Label/Icon ist darueber erlaubt. -->
@@ -44,6 +56,63 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- Phase 5: Die vier Pflichtkomponenten der Standard-SMS-App-Rolle. Android
+             prueft ihr Vorhandensein, bevor es eine App ueberhaupt zur Auswahl anbietet -
+             fehlt eine davon, erscheint Hub nicht in der Liste. Sie sind auch dann
+             deklariert, wenn der Nutzer die Rolle nie aktiviert; ohne die Rolle stellt
+             das System ihnen schlicht nie etwas zu. -->
+
+        <!-- 1. Eingehende SMS: SMS_DELIVER geht ausschliesslich an die Standard-SMS-App. -->
+        <receiver
+            android:name=".sms.SmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_DELIVER" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 2. Eingehende MMS (nicht inhaltlich verarbeitet, siehe MmsReceiver-KDoc). -->
+        <receiver
+            android:name=".sms.MmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_WAP_PUSH">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.WAP_PUSH_DELIVER" />
+                <data android:mimeType="application/vnd.wap.mms-message" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 3. "Mit Nachricht antworten" aus dem Anrufbildschirm. -->
+        <service
+            android:name=".sms.HeadlessSmsSendService"
+            android:exported="true"
+            android:permission="android.permission.SEND_RESPOND_VIA_MESSAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.RESPOND_VIA_MESSAGE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="sms" />
+                <data android:scheme="smsto" />
+                <data android:scheme="mms" />
+                <data android:scheme="mmsto" />
+            </intent-filter>
+        </service>
+
+        <!-- 4. "Neue SMS schreiben"-Einstieg aus anderen Apps. -->
+        <activity
+            android:name=".sms.ComposeSmsActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SENDTO" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sms" />
+                <data android:scheme="smsto" />
+                <data android:scheme="mms" />
+                <data android:scheme="mmsto" />
+            </intent-filter>
+        </activity>
 
     </application>
 
