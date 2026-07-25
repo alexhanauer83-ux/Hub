@@ -57,6 +57,18 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Hub">
 
+        <!-- Android Auto: deklariert Hub als Messaging-App (liest MessagingStyle-
+             Benachrichtigungen vor + Sprachantwort). Siehe res/xml/automotive_app_desc.xml. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+
+        <!-- Empfaengt Antwort/Gelesen aus Hub-Benachrichtigungen (u.a. Auto-Sprachantwort).
+             Nicht exported: Die PendingIntents stammen aus der App selbst. -->
+        <receiver
+            android:name=".notification.HubReplyReceiver"
+            android:exported="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

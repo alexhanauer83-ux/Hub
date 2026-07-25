@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Deklariert Hub gegenüber Android Auto als Messaging-App: Auto liest MessagingStyle-
+     Benachrichtigungen vor und bietet Sprachantwort über die Reply-Action an. -->
+<automotiveApp>
+    <uses name="notification" />
+</automotiveApp>

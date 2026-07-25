@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.Person
+import androidx.core.app.RemoteInput
 import com.hub.app.MainActivity
 import com.hub.app.R
 import com.hub.app.data.source.IncomingMessage
@@ -16,9 +18,9 @@ import com.hub.app.data.source.IncomingMessage
  * Benachrichtigungen durch Hub ersetzt werden sollen (siehe
  * [NotificationSettings.replaceOtherNotifications]).
  *
- * Bewusst **lautlos** (IMPORTANCE_LOW): Der Ton der Original-App ist zu diesem Zeitpunkt
- * schon erklungen (der Listener sieht die Notification erst nach dem Alarm), eine zweite
- * Tonausgabe wäre nur störend. Tippen öffnet Hub.
+ * Als MessagingStyle mit Antwort-/Gelesen-Aktion, damit **Android Auto** die Nachricht
+ * vorlesen und eine Sprachantwort anbieten kann. Ton läuft über den Channel (Standard oder
+ * absenderspezifisch, siehe [SoundSettings]).
  */
 object HubNotifier {
 
@@ -47,21 +49,72 @@ object HubNotifier {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // MessagingStyle + Antwort-/Gelesen-Aktion: So kann Android Auto die Nachricht
+        // vorlesen und eine Sprachantwort anbieten. Die Aktionen zielen auf HubReplyReceiver,
+        // der die Antwort an die richtige Quelle weiterleitet.
+        val sender = Person.Builder().setName(message.sender.ifBlank { message.sourceLabel }).build()
+        val messagingStyle = NotificationCompat.MessagingStyle(
+            Person.Builder().setName("Ich").build()
+        ).setConversationTitle(message.sourceLabel)
+            .addMessage(message.content, message.timestamp, sender)
+
         val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_stat_hub)
-            .setContentTitle(message.sender.ifBlank { message.sourceLabel })
-            .setContentText(message.content)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(message.content))
-            .setSubText(message.sourceLabel)
+            .setStyle(messagingStyle)
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
-            // Ton + Vibration, damit Hub wie eine normale Benachrichtigung alarmiert.
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .addAction(buildReplyAction(context, message.stableId))
+            .addAction(buildMarkReadAction(context, message.stableId))
             .build()
 
         // Eine Notification pro Nachricht (stabile ID -> Updates statt Duplikate).
         runCatching { manager.notify(message.stableId.hashCode(), notification) }
+    }
+
+    /** Antwort-Aktion mit RemoteInput – von Android Auto als Sprachantwort genutzt. */
+    private fun buildReplyAction(context: Context, messageId: String): NotificationCompat.Action {
+        val remoteInput = RemoteInput.Builder(HubReplyReceiver.KEY_REPLY_TEXT)
+            .setLabel("Antworten")
+            .build()
+
+        val intent = Intent(context, HubReplyReceiver::class.java).apply {
+            action = HubReplyReceiver.ACTION_REPLY
+            putExtra(HubReplyReceiver.EXTRA_MESSAGE_ID, messageId)
+        }
+        // MUTABLE, weil das System die Sprach-/Texteingabe in den Intent schreibt.
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            ("reply:$messageId").hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        )
+
+        return NotificationCompat.Action.Builder(R.drawable.ic_stat_hub, "Antworten", pendingIntent)
+            .addRemoteInput(remoteInput)
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
+            .setShowsUserInterface(false)
+            .setAllowGeneratedReplies(true)
+            .build()
+    }
+
+    private fun buildMarkReadAction(context: Context, messageId: String): NotificationCompat.Action {
+        val intent = Intent(context, HubReplyReceiver::class.java).apply {
+            action = HubReplyReceiver.ACTION_MARK_READ
+            putExtra(HubReplyReceiver.EXTRA_MESSAGE_ID, messageId)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            ("read:$messageId").hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Action.Builder(R.drawable.ic_stat_hub, "Gelesen", pendingIntent)
+            .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_MARK_AS_READ)
+            .setShowsUserInterface(false)
+            .build()
     }
 
     /**
