@@ -24,14 +24,18 @@ base64 -w0 hub-release.jks > hub-release.jks.base64
 ```
 
 ### 3. GitHub-Secrets anlegen
-Repo → **Settings → Secrets and variables → Actions → New repository secret**:
+Per `gh` (wichtig: `printf` statt `echo`, sonst landet ein **Zeilenumbruch** im Secret
+und die Signatur schlägt mit „Tag number over 30 is not supported" fehl):
 
-| Secret | Wert |
-|---|---|
-| `KEYSTORE_BASE64` | Inhalt von `hub-release.jks.base64` |
-| `KEYSTORE_PASSWORD` | Store-Passwort aus Schritt 1 |
-| `KEY_ALIAS` | `hub` |
-| `KEY_PASSWORD` | Key-Passwort aus Schritt 1 |
+```bash
+base64 -w0 hub-release.jks           | gh secret set KEYSTORE_BASE64
+printf '%s' 'DEIN_STORE_PASSWORT'    | gh secret set KEYSTORE_PASSWORD
+printf '%s' 'DEIN_KEY_PASSWORT'      | gh secret set KEY_PASSWORD
+printf '%s' 'hub'                    | gh secret set KEY_ALIAS
+```
+
+(Alternativ im Web: Repo → Settings → Secrets and variables → Actions → New repository
+secret. Dann darauf achten, keine Leerzeichen/Zeilenumbrüche mitzukopieren.)
 
 ## Neue Version veröffentlichen
 1. In `app/build.gradle.kts` **`versionCode` erhöhen** (Ganzzahl, muss steigen) und
