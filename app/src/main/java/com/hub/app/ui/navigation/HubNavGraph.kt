@@ -12,6 +12,7 @@ import com.hub.app.notification.NotificationAccess
 import com.hub.app.ui.hub.HubScreen
 import com.hub.app.ui.onboarding.OnboardingScreen
 import com.hub.app.ui.settings.SettingsScreen
+import com.hub.app.ui.settings.TelegramSetupScreen
 
 @Composable
 fun HubNavGraph(navController: NavHostController = rememberNavController()) {
@@ -45,7 +46,13 @@ fun HubNavGraph(navController: NavHostController = rememberNavController()) {
             )
         }
         composable(Destinations.SETTINGS) {
-            SettingsScreen(onBack = { navController.popBackStack() })
+            SettingsScreen(
+                onBack = { navController.popBackStack() },
+                onOpenTelegramSetup = { navController.navigate(Destinations.TELEGRAM_SETUP) }
+            )
+        }
+        composable(Destinations.TELEGRAM_SETUP) {
+            TelegramSetupScreen(onBack = { navController.popBackStack() })
         }
     }
 }

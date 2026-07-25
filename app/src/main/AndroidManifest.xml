@@ -6,6 +6,12 @@
          ausschliesslich der Notification-Listener-Zugriff unten. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Phase 6: ausschliesslich fuer die API-Connectoren (Telegram Bot API, IMAP).
+         Die Verbindungen gehen direkt zum jeweiligen Dienst - es gibt kein Hub-Backend,
+         keine Cloud-Synchronisierung und kein Analytics/Tracking. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <!-- Phase 5, OPTIONAL: nur relevant, wenn der Nutzer Hub bewusst zur Standard-SMS-App
          macht. Ohne die Rolle bleiben diese Berechtigungen ungenutzt; READ_SMS/SEND_SMS
          werden zusaetzlich zur Laufzeit abgefragt.

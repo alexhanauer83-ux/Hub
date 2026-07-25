@@ -42,6 +42,7 @@ import com.hub.app.data.local.entity.SourceAppEntity
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onOpenTelegramSetup: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = viewModel()
 ) {
@@ -90,6 +91,22 @@ fun SettingsScreen(
                 .padding(padding)
         ) {
             item {
+                SectionHeader("Direkte Anbindungen")
+                Text(
+                    "Über die offene API angebundene Dienste liefern den vollen Verlauf und " +
+                        "sind zuverlässiger als der Weg über Benachrichtigungen.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                TextButton(
+                    onClick = onOpenTelegramSetup,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    Text("Telegram einrichten")
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
                 SectionHeader("SMS")
                 SmsSection(
                     isDefaultSmsApp = state.isDefaultSmsApp,
