@@ -1,45 +1,38 @@
 package com.hub.app.connectors.matrix
 
+import android.content.Context
+import android.util.Log
+import com.hub.app.data.local.entity.MessageCategory
+import com.hub.app.data.source.IncomingMessage
 import com.hub.app.data.source.MessageIngestSink
 import com.hub.app.data.source.MessageSource
 import com.hub.app.data.source.ReplyTarget
 import com.hub.app.data.source.SourceCapability
 import com.hub.app.data.source.SourceQuality
+import com.squareup.moshi.Moshi
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import okhttp3.OkHttpClient
+import retrofit2.HttpException
+import retrofit2.Retrofit
+import retrofit2.converter.moshi.MoshiConverterFactory
+import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 /**
- * ## Status: Platzhalter, nicht implementiert
+ * Matrix-Connector über die Client-Server-HTTP-API (siehe [MatrixApi]).
  *
- * Dieser Connector definiert nur den Vertrag – es findet **keine** Kommunikation mit
- * einem Matrix-Homeserver statt. Er existiert, damit die Erweiterungsstelle in der
- * Architektur sichtbar ist und ein späterer Ausbau nichts anderes anfassen muss.
- *
- * ### Warum hier nichts vorgetäuscht wird
- * Matrix sinnvoll anzubinden ist deutlich mehr Arbeit als bei Telegram oder IMAP:
- *
- *  - Das in der Aufgabenstellung genannte `matrix-android-sdk2` ist faktisch abgelöst;
- *    aktuell ist das **Matrix Rust SDK** (via Kotlin-Bindings) der gepflegte Weg. Beide
- *    bringen erhebliche Abhängigkeiten mit (Rust-Bindings bzw. Realm/OLM als native Libs).
- *  - **E2E-Verschlüsselung** ist bei Matrix der Normalfall, nicht die Ausnahme. Ein
- *    Client muss Geräte-Verifikation, Key-Backup und Cross-Signing beherrschen – ohne
- *    das sieht der Nutzer in verschlüsselten Räumen ausschließlich "Kann nicht
- *    entschlüsselt werden".
- *  - Der **Sync-Loop** (`/sync` mit `since`-Token bzw. Sliding Sync) braucht persistenten
- *    Zustand und läuft im Mobilbetrieb sinnvoll nur über Push (Sygnal/UnifiedPush),
- *    nicht über Dauer-Polling.
- *
- * Eine halbe Implementierung wäre hier schlechter als keine: Sie würde in genau den
- * verschlüsselten Räumen scheitern, in denen die meisten Nutzer tatsächlich schreiben.
- * Bis dahin greift für Matrix-Clients wie Element der Notification-Fallback aus
- * Kernfunktion 1.
- *
- * ### Nächste Schritte für eine echte Anbindung
- *  1. Matrix Rust SDK (Kotlin-Bindings) als Abhängigkeit aufnehmen.
- *  2. Login-Flow (Homeserver-Discovery, Passwort oder SSO) im Onboarding ergänzen.
- *  3. Session-/Krypto-Store verschlüsselt persistieren (analog SQLCipher-Ansatz der App).
- *  4. Sync-Ergebnisse auf [com.hub.app.data.source.IncomingMessage] abbilden und über
- *     [MessageIngestSink] einspeisen – ab hier ist der Rest der App bereits fertig.
+ * Deckt Login, Kontoregistrierung (UIA/dummy), Live-Sync und Senden ab. E2EE-Räume
+ * werden nicht entschlüsselt (Platzhalter); unverschlüsselte Räume vollständig. Lokal
+ * liegen alle Nachrichten SQLCipher-verschlüsselt, die Session in
+ * [MatrixCredentialStore].
  */
-class MatrixConnector : MessageSource {
+class MatrixConnector(
+    context: Context,
+    private val credentials: MatrixCredentialStore = MatrixCredentialStore(context)
+) : MessageSource {
 
     override val sourceKey: String = SOURCE_KEY
     override val displayName: String = "Matrix"
@@ -47,22 +40,260 @@ class MatrixConnector : MessageSource {
     override val capabilities: Set<SourceCapability> =
         setOf(SourceCapability.REPLY, SourceCapability.FULL_HISTORY)
 
-    /** Immer false: Ohne SDK-Anbindung lässt sich dieser Connector nicht einrichten. */
-    fun isConfigured(): Boolean = false
+    private val moshi = Moshi.Builder().build()
+    private val uiaAdapter = moshi.adapter(UiaResponse::class.java)
+
+    private var cachedApi: Pair<String, MatrixApi>? = null
+
+    fun isConfigured(): Boolean = credentials.isConfigured()
+
+    fun currentUserId(): String? = credentials.userId
+
+    // --- Einrichtung ---------------------------------------------------------
+
+    /** Meldet sich per Passwort an und speichert die Session. Liefert die User-ID. */
+    suspend fun login(homeserver: String, username: String, password: String): Result<String> =
+        runCatching {
+            val base = normalizeHomeserver(homeserver)
+            val api = buildApi(base)
+            val response = api.login(LoginRequest(identifier = Identifier(user = username.trim()), password = password))
+            if (!response.isSuccessful) {
+                throw IllegalStateException(errorMessage(response.errorBody()?.string(), "Anmeldung fehlgeschlagen"))
+            }
+            val body = response.body() ?: throw IllegalStateException("Leere Antwort vom Server")
+            storeSession(base, body.userId, body.accessToken, body.deviceId)
+            body.userId
+        }
+
+    /**
+     * Legt ein neues Konto an. Unterstützt den einfachen UIA-Fluss (`m.login.dummy`).
+     * Verlangt der Server zusätzliche Schritte (Captcha, Nutzungsbedingungen, E-Mail,
+     * Registration-Token), ist das über diese schlanke HTTP-Anbindung nicht leistbar –
+     * dann kommt eine erklärende Fehlermeldung.
+     */
+    suspend fun register(homeserver: String, username: String, password: String): Result<String> =
+        runCatching {
+            val base = normalizeHomeserver(homeserver)
+            val api = buildApi(base)
+            val user = username.trim()
+
+            // Schritt 1: ohne auth -> i. d. R. 401 mit Session + Flows.
+            val first = api.register(RegisterRequest(username = user, password = password, auth = null))
+            if (first.isSuccessful) {
+                return@runCatching storeFromRegister(base, first.body())
+            }
+            if (first.code() != 401) {
+                throw IllegalStateException(errorMessage(first.errorBody()?.string(), "Registrierung fehlgeschlagen"))
+            }
+
+            val uia = first.errorBody()?.string()?.let { runCatching { uiaAdapter.fromJson(it) }.getOrNull() }
+            val session = uia?.session
+                ?: throw IllegalStateException("Server lieferte keine Registrierungs-Session")
+
+            val onlyDummy = uia.flows?.any { it.stages == listOf("m.login.dummy") } == true
+            if (!onlyDummy) {
+                val stages = uia.flows?.flatMap { it.stages }?.distinct()?.joinToString(", ").orEmpty()
+                throw IllegalStateException(
+                    "Dieser Homeserver verlangt zusätzliche Registrierungsschritte" +
+                        (if (stages.isNotBlank()) " ($stages)" else "") +
+                        ". Bitte lege das Konto direkt beim Anbieter an und melde dich hier an."
+                )
+            }
+
+            // Schritt 2: mit dummy-auth.
+            val second = api.register(
+                RegisterRequest(username = user, password = password, auth = AuthDict("m.login.dummy", session))
+            )
+            if (!second.isSuccessful) {
+                throw IllegalStateException(errorMessage(second.errorBody()?.string(), "Registrierung fehlgeschlagen"))
+            }
+            storeFromRegister(base, second.body())
+        }
+
+    fun signOut() {
+        cachedApi = null
+        credentials.clear()
+    }
+
+    // --- Kontakte / Räume ----------------------------------------------------
+
+    data class MatrixContact(val roomId: String, val name: String)
+
+    /** Beigetretene Räume als "Kontakte/Chats" – jeweils mit Anzeigenamen (sofern gesetzt). */
+    suspend fun fetchContacts(): Result<List<MatrixContact>> = runCatching {
+        val (base, token) = requireSession()
+        val api = buildApi(base)
+        val auth = bearer(token)
+        api.joinedRooms(auth).joinedRooms.map { roomId ->
+            val name = runCatching {
+                val r = api.roomName(auth, roomId)
+                if (r.isSuccessful) r.body()?.name else null
+            }.getOrNull()
+            MatrixContact(roomId, name ?: roomId)
+        }
+    }
+
+    // --- Sync-Loop -----------------------------------------------------------
 
     override suspend fun start(ingestSink: MessageIngestSink) {
-        throw NotImplementedError(
-            "Matrix-Connector ist nicht implementiert (siehe KDoc). Für Matrix-Clients " +
-                "greift derzeit der Notification-Fallback."
+        if (!credentials.isConfigured()) {
+            Log.i(TAG, "Matrix nicht eingerichtet – Connector startet nicht.")
+            return
+        }
+        val base = credentials.homeserver ?: return
+        val token = credentials.accessToken ?: return
+        val api = buildApi(base)
+        val auth = bearer(token)
+        val selfId = credentials.userId
+
+        var since = credentials.syncSince
+        // Beim allerersten Sync (kein Token) nur den Startpunkt merken und den Backlog
+        // NICHT einspeisen - der Hub soll neue Nachrichten sammeln, nicht die gesamte
+        // Historie fluten. Ab dem zweiten Durchlauf werden Live-Ereignisse eingespeist.
+        var skipBacklog = since == null
+        var backoffMillis = INITIAL_BACKOFF_MILLIS
+
+        while (currentCoroutineContext().isActive) {
+            try {
+                val response = api.sync(auth, since, LONG_POLL_TIMEOUT_MS)
+                if (!skipBacklog) {
+                    response.rooms?.join?.forEach { (roomId, room) ->
+                        room.timeline?.events?.forEach { event ->
+                            event.toIncomingMessage(roomId, selfId)?.let { ingestSink.ingest(it) }
+                        }
+                    }
+                }
+                since = response.nextBatch
+                credentials.syncSince = since
+                skipBacklog = false
+                backoffMillis = INITIAL_BACKOFF_MILLIS
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: HttpException) {
+                if (e.code() == 401) {
+                    // Token ungültig/abgelaufen -> Session verwerfen, Loop beenden.
+                    Log.w(TAG, "Matrix-Token abgelehnt (401) – Session wird zurückgesetzt.")
+                    credentials.clear()
+                    return
+                }
+                Log.w(TAG, "Sync-Fehler ${e.code()}, neuer Versuch in ${backoffMillis}ms", e)
+                delay(backoffMillis)
+                backoffMillis = (backoffMillis * 2).coerceAtMost(MAX_BACKOFF_MILLIS)
+            } catch (e: Exception) {
+                Log.w(TAG, "Sync fehlgeschlagen, neuer Versuch in ${backoffMillis}ms", e)
+                delay(backoffMillis)
+                backoffMillis = (backoffMillis * 2).coerceAtMost(MAX_BACKOFF_MILLIS)
+            }
+        }
+    }
+
+    override suspend fun stop() = Unit // Die Sync-Coroutine wird von aussen abgebrochen.
+
+    // --- Senden --------------------------------------------------------------
+
+    override suspend fun sendReply(target: ReplyTarget, text: String): Result<Unit> = runCatching {
+        val (base, token) = requireSession()
+        val roomId = target.conversationId
+            ?: throw IllegalArgumentException("Kein Raum für die Antwort bekannt")
+        val api = buildApi(base)
+        // txnId muss pro Nachricht eindeutig sein (Idempotenz serverseitig).
+        api.sendMessage(bearer(token), roomId, UUID.randomUUID().toString(), SendRequest(body = text))
+        Unit
+    }
+
+    // --- intern --------------------------------------------------------------
+
+    private fun MatrixEvent.toIncomingMessage(roomId: String, selfId: String?): IncomingMessage? {
+        // Eigene ausgehende Nachrichten nicht als Eingang spiegeln.
+        if (sender != null && sender == selfId) return null
+
+        val content: String
+        when (type) {
+            "m.room.message" -> {
+                content = this.content?.body ?: return null
+            }
+            "m.room.encrypted" -> {
+                // E2EE kann diese Anbindung nicht entschlüsseln (siehe MatrixApi-KDoc).
+                content = "🔒 Verschlüsselte Nachricht (in Hub nicht entschlüsselbar)"
+            }
+            else -> return null
+        }
+
+        return IncomingMessage(
+            sourceKey = SOURCE_KEY,
+            sourceLabel = "Matrix",
+            sourcePackageName = null,
+            externalId = eventId ?: "$roomId:${timestamp ?: System.currentTimeMillis()}",
+            conversationId = roomId,
+            sender = sender ?: "Matrix",
+            content = content,
+            timestamp = timestamp ?: System.currentTimeMillis(),
+            category = MessageCategory.MESSAGING,
+            isContentRedacted = type == "m.room.encrypted",
+            hasQuickReply = true
         )
     }
 
-    override suspend fun stop() = Unit
+    private fun storeFromRegister(base: String, body: RegisterResponse?): String {
+        val userId = body?.userId ?: throw IllegalStateException("Leere Antwort vom Server")
+        val token = body.accessToken
+            ?: throw IllegalStateException("Server hat kein Access-Token geliefert (evtl. E-Mail-Bestätigung nötig)")
+        storeSession(base, userId, token, body.deviceId)
+        return userId
+    }
 
-    override suspend fun sendReply(target: ReplyTarget, text: String): Result<Unit> =
-        Result.failure(NotImplementedError("Matrix-Connector ist nicht implementiert"))
+    private fun storeSession(base: String, userId: String, token: String, deviceId: String?) {
+        credentials.homeserver = base
+        credentials.userId = userId
+        credentials.accessToken = token
+        credentials.deviceId = deviceId
+        credentials.syncSince = null // frische Session -> beim ersten Sync Backlog überspringen
+    }
+
+    private fun requireSession(): Pair<String, String> {
+        val base = credentials.homeserver
+        val token = credentials.accessToken
+        if (base.isNullOrBlank() || token.isNullOrBlank()) {
+            throw IllegalStateException("Matrix ist nicht eingerichtet")
+        }
+        return base to token
+    }
+
+    private fun bearer(token: String) = "Bearer $token"
+
+    private fun buildApi(base: String): MatrixApi {
+        cachedApi?.let { (cachedBase, api) -> if (cachedBase == base) return api }
+        val client = OkHttpClient.Builder()
+            // Muss über dem Long-Poll-Timeout liegen, sonst bricht OkHttp die offene
+            // Sync-Verbindung selbst ab.
+            .readTimeout((LONG_POLL_TIMEOUT_MS / 1000L) + 20L, TimeUnit.SECONDS)
+            .build()
+        val api = Retrofit.Builder()
+            .baseUrl("$base/")
+            .client(client)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(MatrixApi::class.java)
+        cachedApi = base to api
+        return api
+    }
+
+    private fun normalizeHomeserver(input: String): String {
+        var s = input.trim().removeSuffix("/")
+        if (!s.startsWith("http://") && !s.startsWith("https://")) s = "https://$s"
+        return s
+    }
+
+    private fun errorMessage(errorBody: String?, fallback: String): String {
+        val parsed = errorBody?.let { runCatching { uiaAdapter.fromJson(it) }.getOrNull() }
+        return parsed?.error ?: fallback
+    }
 
     companion object {
         const val SOURCE_KEY = "matrix"
+        private const val TAG = "MatrixConnector"
+        private const val LONG_POLL_TIMEOUT_MS = 30_000
+        private const val INITIAL_BACKOFF_MILLIS = 2_000L
+        private const val MAX_BACKOFF_MILLIS = 120_000L
     }
 }

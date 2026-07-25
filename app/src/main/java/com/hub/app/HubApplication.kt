@@ -1,6 +1,7 @@
 package com.hub.app
 
 import android.app.Application
+import com.hub.app.connectors.matrix.MatrixConnector
 import com.hub.app.connectors.telegram.TelegramBotConnector
 import com.hub.app.di.ServiceLocator
 import kotlinx.coroutines.CoroutineScope
@@ -30,6 +31,9 @@ class HubApplication : Application() {
             val registry = ServiceLocator.connectorRegistry(this@HubApplication)
             if (ServiceLocator.telegramConnector(this@HubApplication).isConfigured()) {
                 registry.start(TelegramBotConnector.SOURCE_KEY)
+            }
+            if (ServiceLocator.matrixConnector(this@HubApplication).isConfigured()) {
+                registry.start(MatrixConnector.SOURCE_KEY)
             }
         }
     }

@@ -11,6 +11,7 @@ import androidx.navigation.compose.rememberNavController
 import com.hub.app.notification.NotificationAccess
 import com.hub.app.ui.hub.HubScreen
 import com.hub.app.ui.onboarding.OnboardingScreen
+import com.hub.app.ui.settings.MatrixSetupScreen
 import com.hub.app.ui.settings.SettingsScreen
 import com.hub.app.ui.settings.TelegramSetupScreen
 
@@ -48,11 +49,15 @@ fun HubNavGraph(navController: NavHostController = rememberNavController()) {
         composable(Destinations.SETTINGS) {
             SettingsScreen(
                 onBack = { navController.popBackStack() },
-                onOpenTelegramSetup = { navController.navigate(Destinations.TELEGRAM_SETUP) }
+                onOpenTelegramSetup = { navController.navigate(Destinations.TELEGRAM_SETUP) },
+                onOpenMatrixSetup = { navController.navigate(Destinations.MATRIX_SETUP) }
             )
         }
         composable(Destinations.TELEGRAM_SETUP) {
             TelegramSetupScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Destinations.MATRIX_SETUP) {
+            MatrixSetupScreen(onBack = { navController.popBackStack() })
         }
     }
 }

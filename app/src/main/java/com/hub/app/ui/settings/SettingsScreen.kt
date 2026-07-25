@@ -43,6 +43,7 @@ import com.hub.app.data.local.entity.SourceAppEntity
 fun SettingsScreen(
     onBack: () -> Unit,
     onOpenTelegramSetup: () -> Unit,
+    onOpenMatrixSetup: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = viewModel()
 ) {
@@ -112,6 +113,12 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 8.dp)
                 ) {
                     Text("Telegram einrichten")
+                }
+                TextButton(
+                    onClick = onOpenMatrixSetup,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    Text("Matrix einrichten")
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 

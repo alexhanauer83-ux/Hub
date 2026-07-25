@@ -9,5 +9,6 @@ object Destinations {
     const val SETTINGS = "settings"
     const val SOURCE_SELECTION = "source_selection"
     const val TELEGRAM_SETUP = "telegram_setup"
+    const val MATRIX_SETUP = "matrix_setup"
     const val APP_LOCK = "app_lock"
 }

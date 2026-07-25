@@ -3,6 +3,7 @@ package com.hub.app.di
 import android.content.Context
 import androidx.room.Room
 import com.hub.app.connectors.ConnectorRegistry
+import com.hub.app.connectors.matrix.MatrixConnector
 import com.hub.app.connectors.telegram.TelegramBotConnector
 import com.hub.app.data.local.HubDatabase
 import com.hub.app.data.repository.MessageRepository
@@ -21,11 +22,18 @@ object ServiceLocator {
     @Volatile private var messageRepository: MessageRepository? = null
     @Volatile private var connectorRegistry: ConnectorRegistry? = null
     @Volatile private var telegramConnector: TelegramBotConnector? = null
+    @Volatile private var matrixConnector: MatrixConnector? = null
 
     fun telegramConnector(context: Context): TelegramBotConnector =
         telegramConnector ?: synchronized(this) {
             telegramConnector ?: TelegramBotConnector(context.applicationContext)
                 .also { telegramConnector = it }
+        }
+
+    fun matrixConnector(context: Context): MatrixConnector =
+        matrixConnector ?: synchronized(this) {
+            matrixConnector ?: MatrixConnector(context.applicationContext)
+                .also { matrixConnector = it }
         }
 
     /**
@@ -36,9 +44,8 @@ object ServiceLocator {
         connectorRegistry ?: synchronized(this) {
             connectorRegistry ?: ConnectorRegistry(messageRepository(context)).apply {
                 register(telegramConnector(context))
-                // IMAP und Matrix sind noch Stubs (siehe deren KDoc) und werden daher
-                // nicht registriert - sonst wuerden sie in den Einstellungen als
-                // nutzbare Quellen erscheinen, ohne es zu sein.
+                register(matrixConnector(context))
+                // IMAP ist noch ein Stub (siehe KDoc) und daher nicht registriert.
             }.also { connectorRegistry = it }
         }
 

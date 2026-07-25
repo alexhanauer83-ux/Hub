@@ -1,0 +1,179 @@
+package com.hub.app.connectors.matrix
+
+import com.squareup.moshi.Json
+import com.squareup.moshi.JsonClass
+import retrofit2.Response
+import retrofit2.http.Body
+import retrofit2.http.GET
+import retrofit2.http.Header
+import retrofit2.http.POST
+import retrofit2.http.PUT
+import retrofit2.http.Path
+import retrofit2.http.Query
+
+/**
+ * Matrix **Client-Server-API** (HTTPS/JSON), analog zum Telegram-Connector bewusst ohne
+ * schwergewichtiges SDK. Der Homeserver ist pro Konto konfigurierbar, daher wird das
+ * Retrofit-Objekt im [MatrixConnector] mit der jeweiligen Basis-URL gebaut.
+ *
+ * ## Wichtige Grenze: E2E-Verschlüsselung
+ * Diese Anbindung kann E2EE-Räume **nicht** entschlüsseln – das bräuchte die Krypto-
+ * Bibliothek (Olm/Megolm) bzw. das Rust-SDK. Ereignisse vom Typ `m.room.encrypted`
+ * werden daher als nicht-entschlüsselbarer Platzhalter eingespeist. Unverschlüsselte
+ * Räume funktionieren vollständig. Lokal liegen alle Nachrichten trotzdem verschlüsselt
+ * (SQLCipher-DB), Zugangsdaten in EncryptedSharedPreferences.
+ */
+interface MatrixApi {
+
+    @POST("_matrix/client/v3/login")
+    suspend fun login(@Body body: LoginRequest): Response<LoginResponse>
+
+    /**
+     * Registrierung läuft über "User-Interactive Authentication" (UIA): Der erste Aufruf
+     * ohne `auth` liefert i. d. R. 401 mit einer `session` und den nötigen Stages. Beim
+     * zweiten Aufruf wird `auth` mit der Session (z. B. `m.login.dummy`) mitgeschickt.
+     */
+    @POST("_matrix/client/v3/register")
+    suspend fun register(@Body body: RegisterRequest): Response<RegisterResponse>
+
+    @GET("_matrix/client/v3/sync")
+    suspend fun sync(
+        @Header("Authorization") auth: String,
+        @Query("since") since: String?,
+        @Query("timeout") timeoutMs: Int = 30000
+    ): SyncResponse
+
+    @PUT("_matrix/client/v3/rooms/{roomId}/send/m.room.message/{txnId}")
+    suspend fun sendMessage(
+        @Header("Authorization") auth: String,
+        @Path("roomId") roomId: String,
+        @Path("txnId") txnId: String,
+        @Body body: SendRequest
+    ): SendResponse
+
+    @GET("_matrix/client/v3/joined_rooms")
+    suspend fun joinedRooms(@Header("Authorization") auth: String): JoinedRoomsResponse
+
+    @GET("_matrix/client/v3/rooms/{roomId}/state/m.room.name/")
+    suspend fun roomName(
+        @Header("Authorization") auth: String,
+        @Path("roomId") roomId: String
+    ): Response<RoomNameResponse>
+
+    companion object {
+        /** Öffentlicher Standard-Homeserver als Vorbelegung im Setup. */
+        const val DEFAULT_HOMESERVER = "https://matrix.org"
+    }
+}
+
+@JsonClass(generateAdapter = true)
+data class LoginRequest(
+    val identifier: Identifier,
+    val password: String,
+    val type: String = "m.login.password",
+    @Json(name = "initial_device_display_name") val deviceName: String = "Hub"
+)
+
+@JsonClass(generateAdapter = true)
+data class Identifier(
+    val user: String,
+    val type: String = "m.id.user"
+)
+
+@JsonClass(generateAdapter = true)
+data class LoginResponse(
+    @Json(name = "user_id") val userId: String,
+    @Json(name = "access_token") val accessToken: String,
+    @Json(name = "device_id") val deviceId: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class RegisterRequest(
+    val username: String,
+    val password: String,
+    val auth: AuthDict? = null,
+    @Json(name = "initial_device_display_name") val deviceName: String = "Hub"
+)
+
+@JsonClass(generateAdapter = true)
+data class AuthDict(
+    val type: String,
+    val session: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class RegisterResponse(
+    @Json(name = "user_id") val userId: String,
+    @Json(name = "access_token") val accessToken: String?,
+    @Json(name = "device_id") val deviceId: String?
+)
+
+/** Antwortkörper einer UIA-Anforderung (HTTP 401) bzw. eines Matrix-Fehlers. */
+@JsonClass(generateAdapter = true)
+data class UiaResponse(
+    val session: String? = null,
+    val flows: List<Flow>? = null,
+    val completed: List<String>? = null,
+    val errcode: String? = null,
+    val error: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class Flow(val stages: List<String> = emptyList())
+
+@JsonClass(generateAdapter = true)
+data class SyncResponse(
+    @Json(name = "next_batch") val nextBatch: String,
+    val rooms: Rooms? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class Rooms(
+    val join: Map<String, JoinedRoom>? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class JoinedRoom(
+    val timeline: Timeline? = null,
+    val state: RoomState? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class Timeline(val events: List<MatrixEvent>? = null)
+
+@JsonClass(generateAdapter = true)
+data class RoomState(val events: List<MatrixEvent>? = null)
+
+@JsonClass(generateAdapter = true)
+data class MatrixEvent(
+    val type: String,
+    val sender: String? = null,
+    val content: EventContent? = null,
+    @Json(name = "origin_server_ts") val timestamp: Long? = null,
+    @Json(name = "event_id") val eventId: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class EventContent(
+    val msgtype: String? = null,
+    val body: String? = null,
+    /** Bei m.room.name-State-Events der Raumname. */
+    val name: String? = null,
+    /** Bei Bild-/Datei-Nachrichten die mxc://-URL. */
+    val url: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class SendRequest(
+    val body: String,
+    val msgtype: String = "m.text"
+)
+
+@JsonClass(generateAdapter = true)
+data class SendResponse(@Json(name = "event_id") val eventId: String?)
+
+@JsonClass(generateAdapter = true)
+data class JoinedRoomsResponse(@Json(name = "joined_rooms") val joinedRooms: List<String> = emptyList())
+
+@JsonClass(generateAdapter = true)
+data class RoomNameResponse(val name: String? = null)
