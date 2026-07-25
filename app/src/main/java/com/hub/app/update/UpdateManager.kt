@@ -28,8 +28,25 @@ object UpdateManager {
     private const val REPO = "Hub"
     private const val LATEST_URL = "https://api.github.com/repos/$OWNER/$REPO/releases/latest"
 
-    private val client = OkHttpClient()
+    // Timeouts, damit ein Download bei schlechtem Netz sauber abbricht statt zu haengen.
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+        .callTimeout(180, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
     private val moshi = Moshi.Builder().build()
+
+    /** Darf Hub APKs installieren? (Android 8+ verlangt die Freigabe "Unbekannte Apps".) */
+    fun canInstall(context: Context): Boolean =
+        context.packageManager.canRequestPackageInstalls()
+
+    /** Öffnet die Systemeinstellung, um Hub die Installation unbekannter Apps zu erlauben. */
+    fun installPermissionIntent(context: Context): Intent =
+        Intent(
+            android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+            Uri.parse("package:${context.packageName}")
+        )
 
     data class UpdateInfo(val versionName: String, val apkUrl: String, val notes: String?)
 

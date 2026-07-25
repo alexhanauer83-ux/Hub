@@ -207,7 +207,11 @@ fun SettingsScreen(
                     currentVersion = viewModel.currentVersion,
                     state = updateState,
                     onCheck = viewModel::checkForUpdate,
-                    onInstall = { info -> viewModel.downloadAndInstall(info) }
+                    onInstall = { info -> viewModel.downloadAndInstall(info) },
+                    onGrantInstallPermission = {
+                        context.startActivity(viewModel.installPermissionIntent())
+                    },
+                    onRetryInstall = viewModel::installPending
                 )
             }
         }
@@ -219,7 +223,9 @@ private fun UpdateSection(
     currentVersion: String,
     state: UpdateState,
     onCheck: () -> Unit,
-    onInstall: (com.hub.app.update.UpdateManager.UpdateInfo) -> Unit
+    onInstall: (com.hub.app.update.UpdateManager.UpdateInfo) -> Unit,
+    onGrantInstallPermission: () -> Unit,
+    onRetryInstall: () -> Unit
 ) {
     Column(Modifier.padding(horizontal = 16.dp)) {
         Text(
@@ -249,6 +255,18 @@ private fun UpdateSection(
                 }
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = { onInstall(s.info) }) { Text("Jetzt aktualisieren") }
+            }
+            is UpdateState.NeedsInstallPermission -> {
+                Text(
+                    "Fast fertig: Erlaube Hub das Installieren von Apps, dann kann das " +
+                        "Update abgeschlossen werden.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error
+                )
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = onGrantInstallPermission) { Text("Berechtigung erteilen") }
+                Spacer(Modifier.height(4.dp))
+                TextButton(onClick = onRetryInstall) { Text("Danach: Installieren" ) }
             }
             is UpdateState.Error -> {
                 Text("Prüfung fehlgeschlagen: ${s.message}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
