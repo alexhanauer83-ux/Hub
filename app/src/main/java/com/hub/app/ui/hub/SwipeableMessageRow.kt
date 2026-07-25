@@ -40,6 +40,9 @@ fun SwipeableMessageRow(
     onDoubleClick: () -> Unit,
     onLongPress: () -> Unit,
     onReply: () -> Unit,
+    selectionActive: Boolean = false,
+    selected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val currentOnMarkRead by rememberUpdatedState(onMarkRead)
@@ -66,6 +69,17 @@ fun SwipeableMessageRow(
             false
         }
     )
+
+    // Im Auswahl-Modus keine Swipe-Gesten (Tippen wählt aus/ab).
+    if (selectionActive) {
+        MessageRow(
+            message = message,
+            modifier = modifier,
+            selected = selected,
+            onClick = onToggleSelect
+        )
+        return
+    }
 
     SwipeToDismissBox(
         state = state,

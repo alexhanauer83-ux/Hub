@@ -54,6 +54,8 @@ fun MessagePeekSheet(
     onOpenApp: () -> Unit,
     onDelete: () -> Unit,
     onChooseSound: () -> Unit,
+    onSnooze: (Long) -> Unit,
+    onSelect: () -> Unit,
     canQuickReply: Boolean,
     quickReplyState: QuickReplyState,
     onSendQuickReply: (String) -> Unit
@@ -140,6 +142,18 @@ fun MessagePeekSheet(
             }
             TextButton(onClick = onChooseSound) {
                 Text("Ton für „${message.sender}“ wählen")
+            }
+            TextButton(onClick = onSelect) {
+                Text("Mehrere auswählen")
+            }
+
+            // Snooze: kurz zurückstellen, taucht danach wieder auf.
+            Spacer(Modifier.height(4.dp))
+            Text("Später erinnern", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { onSnooze(60 * 60 * 1000L) }) { Text("1 Std") }
+                TextButton(onClick = { onSnooze(4 * 60 * 60 * 1000L) }) { Text("4 Std") }
+                TextButton(onClick = { onSnooze(24 * 60 * 60 * 1000L) }) { Text("1 Tag") }
             }
 
             if (canQuickReply) {

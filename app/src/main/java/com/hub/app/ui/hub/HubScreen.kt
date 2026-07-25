@@ -15,6 +15,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -60,6 +65,7 @@ fun HubScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val quickReplyState by viewModel.quickReplyState.collectAsStateWithLifecycle()
+    val selection by viewModel.selectionState.collectAsStateWithLifecycle()
     var peekMessage by remember { mutableStateOf<MessageEntity?>(null) }
     var replyMessage by remember { mutableStateOf<MessageEntity?>(null) }
 
@@ -110,7 +116,9 @@ fun HubScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        if (state.isSearching) {
+                        if (selection.active) {
+                            Text("${selection.ids.size} ausgewählt")
+                        } else if (state.isSearching) {
                             TextField(
                                 value = state.searchQuery.orEmpty(),
                                 onValueChange = viewModel::setSearchQuery,
@@ -129,6 +137,9 @@ fun HubScreen(
                     },
                     navigationIcon = {
                         when {
+                            selection.active -> IconButton(onClick = { viewModel.exitSelection() }) {
+                                Icon(Icons.Default.Close, contentDescription = "Auswahl beenden")
+                            }
                             state.isSearching -> IconButton(onClick = { viewModel.stopSearch() }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Suche schließen")
                             }
@@ -141,8 +152,24 @@ fun HubScreen(
                         }
                     },
                     actions = {
-                      // Im Suchmodus keine weiteren Aktionen (Fokus auf dem Suchfeld).
-                      if (!state.isSearching) {
+                      if (selection.active) {
+                          // Sammelaktionen für die ausgewählten Nachrichten.
+                          IconButton(onClick = { viewModel.markSelectedRead() }) {
+                              Icon(Icons.Default.MarkEmailRead, contentDescription = "Als gelesen")
+                          }
+                          IconButton(onClick = { viewModel.archiveSelected() }) {
+                              Icon(Icons.Default.Archive, contentDescription = "Archivieren")
+                          }
+                          IconButton(onClick = { viewModel.deleteSelected() }) {
+                              Icon(Icons.Default.Delete, contentDescription = "Löschen", tint = MaterialTheme.colorScheme.error)
+                          }
+                      } else if (!state.isSearching) {
+                        // Im Suchmodus keine weiteren Aktionen (Fokus auf dem Suchfeld).
+                        if (state.tab == HubTab.POSTEINGANG && state.conversationFilter == null && state.sourceFilter == null) {
+                            IconButton(onClick = { viewModel.markAllRead() }) {
+                                Icon(Icons.Default.DoneAll, contentDescription = "Alle als gelesen", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                         IconButton(onClick = { viewModel.startSearch() }) {
                             Icon(Icons.Default.Search, contentDescription = "Suchen", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -230,7 +257,10 @@ fun HubScreen(
                     onMarkRead = viewModel::markRead,
                     onArchive = viewModel::archive,
                     onUnarchive = viewModel::unarchive,
-                    onOpenPeek = { peekMessage = it }
+                    onOpenPeek = { peekMessage = it },
+                    selectionActive = selection.active,
+                    selectedIds = selection.ids,
+                    onToggleSelect = viewModel::toggleSelected
                 )
             }
         }
@@ -273,6 +303,14 @@ fun HubScreen(
             },
             onDelete = {
                 viewModel.delete(message.id)
+                closePeek()
+            },
+            onSnooze = { duration ->
+                viewModel.snooze(message, duration)
+                closePeek()
+            },
+            onSelect = {
+                viewModel.enterSelection(message)
                 closePeek()
             },
             onChooseSound = {
@@ -351,7 +389,10 @@ private fun MessageList(
     onMarkRead: (String) -> Unit,
     onArchive: (String) -> Unit,
     onUnarchive: (String) -> Unit,
-    onOpenPeek: (MessageEntity) -> Unit
+    onOpenPeek: (MessageEntity) -> Unit,
+    selectionActive: Boolean,
+    selectedIds: Set<String>,
+    onToggleSelect: (String) -> Unit
 ) {
     if (messages.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -379,7 +420,10 @@ private fun MessageList(
                 onClick = { onReply(message) },
                 onDoubleClick = { onOpen(message) },
                 onLongPress = { onOpenPeek(message) },
-                onReply = { onReply(message) }
+                onReply = { onReply(message) },
+                selectionActive = selectionActive,
+                selected = message.id in selectedIds,
+                onToggleSelect = { onToggleSelect(message.id) }
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         }

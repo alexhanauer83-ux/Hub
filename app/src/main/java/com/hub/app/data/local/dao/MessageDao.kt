@@ -20,6 +20,7 @@ interface MessageDao {
         SELECT m.* FROM messages m
         LEFT JOIN source_apps s ON m.sourceKey = s.sourceKey
         WHERE m.isArchived = 0 AND (m.isRead = 0 OR s.isNativeConnector = 1)
+          AND (m.snoozeUntil IS NULL OR m.snoozeUntil <= (strftime('%s','now') * 1000))
         ORDER BY m.timestamp DESC
         """
     )
@@ -33,7 +34,14 @@ interface MessageDao {
 
     // Bei Auswahl einer Quelle im Drawer: ALLE Nachrichten dieser App (gelesen + ungelesen),
     // nur Archiviertes bleibt aussen vor.
-    @Query("SELECT * FROM messages WHERE isArchived = 0 AND sourceKey = :sourceKey ORDER BY timestamp DESC")
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE isArchived = 0 AND sourceKey = :sourceKey
+          AND (snoozeUntil IS NULL OR snoozeUntil <= (strftime('%s','now') * 1000))
+        ORDER BY timestamp DESC
+        """
+    )
     fun observeBySource(sourceKey: String): Flow<List<MessageEntity>>
 
     /**
@@ -62,6 +70,7 @@ interface MessageDao {
         SELECT m.* FROM messages m
         LEFT JOIN source_apps s ON m.sourceKey = s.sourceKey
         WHERE m.isArchived = 0 AND (m.isRead = 0 OR s.isNativeConnector = 1)
+          AND (m.snoozeUntil IS NULL OR m.snoozeUntil <= (strftime('%s','now') * 1000))
         ORDER BY m.timestamp DESC
         LIMIT :limit
         """
@@ -95,6 +104,7 @@ interface MessageDao {
             ON p.sourceKey = m.sourceKey AND LOWER(p.senderMatch) = LOWER(m.sender)
         WHERE m.isArchived = 0
           AND (m.priority = 1 OR s.isPriority = 1 OR p.id IS NOT NULL)
+          AND (m.snoozeUntil IS NULL OR m.snoozeUntil <= (strftime('%s','now') * 1000))
         ORDER BY m.timestamp DESC
         """
     )
@@ -117,4 +127,29 @@ interface MessageDao {
 
     @Query("DELETE FROM messages WHERE id = :id")
     suspend fun delete(id: String)
+
+    // --- Sammelaktionen ---
+    @Query("UPDATE messages SET isRead = 1 WHERE isArchived = 0 AND isRead = 0")
+    suspend fun markAllRead()
+
+    @Query("UPDATE messages SET isRead = 1 WHERE id IN (:ids)")
+    suspend fun markReadIn(ids: List<String>)
+
+    @Query("UPDATE messages SET isArchived = 1 WHERE id IN (:ids)")
+    suspend fun archiveIn(ids: List<String>)
+
+    @Query("DELETE FROM messages WHERE id IN (:ids)")
+    suspend fun deleteIn(ids: List<String>)
+
+    // --- Snooze ---
+    @Query("UPDATE messages SET snoozeUntil = :until WHERE id = :id")
+    suspend fun snooze(id: String, until: Long)
+
+    /** Abgelaufene Snoozes aufheben (vom SnoozeReceiver aufgerufen) -> Nachricht taucht wieder auf. */
+    @Query("UPDATE messages SET snoozeUntil = NULL WHERE snoozeUntil IS NOT NULL AND snoozeUntil <= :now")
+    suspend fun clearExpiredSnoozes(now: Long)
+
+    /** Nächster fälliger Snooze-Zeitpunkt (zum Planen des nächsten Alarms), sonst null. */
+    @Query("SELECT MIN(snoozeUntil) FROM messages WHERE snoozeUntil IS NOT NULL")
+    suspend fun nextSnoozeDue(): Long?
 }

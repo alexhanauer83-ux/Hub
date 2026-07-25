@@ -57,5 +57,7 @@ data class MessageEntity(
     /** Lokale file://-URI eines Bildanhangs (aus der Benachrichtigung extrahiert), sonst null. */
     val imageUri: String? = null,
     /** Lokale file://-URI eines Audioanhangs, sofern die App ihn mitgeliefert hat, sonst null. */
-    val audioUri: String? = null
+    val audioUri: String? = null,
+    /** Zurückgestellt ("snooze") bis zu diesem Zeitpunkt (epoch ms); solange aus dem Feed ausgeblendet. */
+    val snoozeUntil: Long? = null
 )

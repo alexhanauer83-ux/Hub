@@ -48,6 +48,7 @@ import java.util.Locale
 fun MessageRow(
     message: MessageEntity,
     modifier: Modifier = Modifier,
+    selected: Boolean = false,
     onClick: (() -> Unit)? = null,
     onDoubleClick: (() -> Unit)? = null,
     onLongPress: (() -> Unit)? = null,
@@ -56,7 +57,10 @@ fun MessageRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background)
+            .background(
+                if (selected) MaterialTheme.colorScheme.surfaceVariant
+                else MaterialTheme.colorScheme.background
+            )
             .then(
                 if (onClick != null || onLongPress != null || onDoubleClick != null) {
                     Modifier.combinedClickable(

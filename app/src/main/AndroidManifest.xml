@@ -112,6 +112,11 @@
             </intent-filter>
         </receiver>
 
+        <!-- Hebt faellige Snoozes auf (Alarm). -->
+        <receiver
+            android:name=".snooze.SnoozeReceiver"
+            android:exported="false" />
+
         <!-- Teilt die heruntergeladene Update-APK sicher mit dem System-Installer. -->
         <provider
             android:name="androidx.core.content.FileProvider"

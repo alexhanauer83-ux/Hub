@@ -31,6 +31,9 @@ import kotlinx.coroutines.launch
  */
 enum class HubTab { POSTEINGANG, PRIORITAET, ARCHIV }
 
+/** Zustand der Mehrfachauswahl. */
+data class SelectionState(val active: Boolean = false, val ids: Set<String> = emptySet())
+
 /** Referenz auf eine Unterhaltung (Chat/Kontakt). */
 data class ConversationRef(val sourceKey: String, val groupValue: String, val title: String)
 
@@ -290,6 +293,52 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
     fun markRead(id: String) = viewModelScope.launch { repository.markRead(id) }
     fun archive(id: String) = viewModelScope.launch { repository.archive(id) }
     fun delete(id: String) = viewModelScope.launch { repository.delete(id) }
+
+    // --- Sammelaktionen ---
+    fun markAllRead() = viewModelScope.launch { repository.markAllRead() }
+
+    // --- Snooze ---
+    /** Stellt eine Nachricht für [durationMillis] zurück und plant das Wiederauftauchen. */
+    fun snooze(message: MessageEntity, durationMillis: Long) = viewModelScope.launch {
+        val until = System.currentTimeMillis() + durationMillis
+        repository.snooze(message.id, until)
+        com.hub.app.snooze.SnoozeScheduler.scheduleAt(getApplication(), until)
+    }
+
+    // --- Mehrfachauswahl ---
+    private val _selectionMode = MutableStateFlow(false)
+    private val _selectedIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectionState: StateFlow<SelectionState> =
+        combine(_selectionMode, _selectedIds) { active, ids -> SelectionState(active, ids) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SelectionState())
+
+    fun enterSelection(message: MessageEntity) {
+        _selectionMode.value = true
+        _selectedIds.value = setOf(message.id)
+    }
+
+    fun toggleSelected(id: String) {
+        val next = _selectedIds.value.toMutableSet().apply { if (!add(id)) remove(id) }
+        _selectedIds.value = next
+        if (next.isEmpty()) _selectionMode.value = false
+    }
+
+    fun exitSelection() {
+        _selectionMode.value = false
+        _selectedIds.value = emptySet()
+    }
+
+    fun markSelectedRead() = viewModelScope.launch {
+        repository.markReadIn(_selectedIds.value.toList()); exitSelection()
+    }
+
+    fun archiveSelected() = viewModelScope.launch {
+        repository.archiveIn(_selectedIds.value.toList()); exitSelection()
+    }
+
+    fun deleteSelected() = viewModelScope.launch {
+        repository.deleteIn(_selectedIds.value.toList()); exitSelection()
+    }
 
     private val soundSettings by lazy {
         com.hub.app.notification.SoundSettings(getApplication())

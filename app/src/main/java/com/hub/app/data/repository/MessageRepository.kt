@@ -51,7 +51,8 @@ class MessageRepository(
                 // Anhänge: neu gelieferte bevorzugen, sonst bereits gespeicherte behalten
                 // (ein erneutes Einlesen ohne Anhang soll ein vorhandenes Bild nicht löschen).
                 imageUri = message.imageUri ?: existing?.imageUri,
-                audioUri = message.audioUri ?: existing?.audioUri
+                audioUri = message.audioUri ?: existing?.audioUri,
+                snoozeUntil = existing?.snoozeUntil
             )
         )
     }
@@ -76,6 +77,14 @@ class MessageRepository(
     suspend fun setPriority(id: String, priority: Boolean) = messageDao.setPriority(id, priority)
     suspend fun delete(id: String) = messageDao.delete(id)
     suspend fun getById(id: String): MessageEntity? = messageDao.getById(id)
+
+    suspend fun markAllRead() = messageDao.markAllRead()
+    suspend fun markReadIn(ids: List<String>) = messageDao.markReadIn(ids)
+    suspend fun archiveIn(ids: List<String>) = messageDao.archiveIn(ids)
+    suspend fun deleteIn(ids: List<String>) = messageDao.deleteIn(ids)
+    suspend fun snooze(id: String, until: Long) = messageDao.snooze(id, until)
+    suspend fun clearExpiredSnoozes(now: Long) = messageDao.clearExpiredSnoozes(now)
+    suspend fun nextSnoozeDue(): Long? = messageDao.nextSnoozeDue()
 
     suspend fun registerSource(sourceApp: SourceAppEntity) {
         val existing = sourceAppDao.getBySourceKey(sourceApp.sourceKey)
