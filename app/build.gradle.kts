@@ -71,7 +71,9 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
-    implementation("net.zetetic:android-database-sqlcipher:4.5.6")
+    // Neue SQLCipher-Koordinate (ab 4.5.5); die alte "android-database-sqlcipher"
+    // wird nicht mehr gepflegt und existiert nicht in dieser Version.
+    implementation("net.zetetic:sqlcipher-android:4.5.6")
     implementation("androidx.sqlite:sqlite:2.4.0")
 
     // Coroutines

@@ -7,7 +7,7 @@ import com.hub.app.connectors.telegram.TelegramBotConnector
 import com.hub.app.data.local.HubDatabase
 import com.hub.app.data.repository.MessageRepository
 import com.hub.app.security.DatabaseKeyManager
-import net.sqlcipher.database.SupportFactory
+import net.zetetic.database.sqlcipher.SupportFactory
 
 /**
  * Bewusst kein DI-Framework (Hilt/Koin): Die App hat wenige, klar geschnittene
