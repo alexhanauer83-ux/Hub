@@ -10,6 +10,7 @@ object Destinations {
     const val SOURCE_SELECTION = "source_selection"
     const val TELEGRAM_SETUP = "telegram_setup"
     const val MATRIX_SETUP = "matrix_setup"
+    const val IMAP_SETUP = "imap_setup"
     const val COMPOSE_SMS = "compose_sms"
     const val APP_LOCK = "app_lock"
 }

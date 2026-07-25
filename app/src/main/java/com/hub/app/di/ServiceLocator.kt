@@ -3,6 +3,7 @@ package com.hub.app.di
 import android.content.Context
 import androidx.room.Room
 import com.hub.app.connectors.ConnectorRegistry
+import com.hub.app.connectors.imap.ImapConnector
 import com.hub.app.connectors.matrix.MatrixConnector
 import com.hub.app.connectors.telegram.TelegramBotConnector
 import com.hub.app.data.local.HubDatabase
@@ -23,6 +24,7 @@ object ServiceLocator {
     @Volatile private var connectorRegistry: ConnectorRegistry? = null
     @Volatile private var telegramConnector: TelegramBotConnector? = null
     @Volatile private var matrixConnector: MatrixConnector? = null
+    @Volatile private var imapConnector: ImapConnector? = null
 
     fun telegramConnector(context: Context): TelegramBotConnector =
         telegramConnector ?: synchronized(this) {
@@ -36,6 +38,12 @@ object ServiceLocator {
                 .also { matrixConnector = it }
         }
 
+    fun imapConnector(context: Context): ImapConnector =
+        imapConnector ?: synchronized(this) {
+            imapConnector ?: ImapConnector(context.applicationContext)
+                .also { imapConnector = it }
+        }
+
     /**
      * Registriert alle API-Connectoren. Der Notification-Listener taucht hier bewusst
      * nicht auf: Er wird vom System gebunden und startet nicht über die Registry.
@@ -45,7 +53,7 @@ object ServiceLocator {
             connectorRegistry ?: ConnectorRegistry(messageRepository(context)).apply {
                 register(telegramConnector(context))
                 register(matrixConnector(context))
-                // IMAP ist noch ein Stub (siehe KDoc) und daher nicht registriert.
+                register(imapConnector(context))
             }.also { connectorRegistry = it }
         }
 

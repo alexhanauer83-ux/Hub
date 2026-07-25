@@ -1,6 +1,7 @@
 package com.hub.app
 
 import android.app.Application
+import com.hub.app.connectors.imap.ImapConnector
 import com.hub.app.connectors.matrix.MatrixConnector
 import com.hub.app.connectors.telegram.TelegramBotConnector
 import com.hub.app.di.ServiceLocator
@@ -34,6 +35,9 @@ class HubApplication : Application() {
             }
             if (ServiceLocator.matrixConnector(this@HubApplication).isConfigured()) {
                 registry.start(MatrixConnector.SOURCE_KEY)
+            }
+            if (ServiceLocator.imapConnector(this@HubApplication).isConfigured()) {
+                registry.start(ImapConnector.SOURCE_KEY)
             }
         }
     }

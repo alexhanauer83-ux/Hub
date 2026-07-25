@@ -11,6 +11,7 @@ import androidx.navigation.compose.rememberNavController
 import com.hub.app.notification.NotificationAccess
 import com.hub.app.ui.hub.HubScreen
 import com.hub.app.ui.onboarding.OnboardingScreen
+import com.hub.app.ui.settings.ImapSetupScreen
 import com.hub.app.ui.settings.MatrixSetupScreen
 import com.hub.app.ui.settings.SettingsScreen
 import com.hub.app.ui.sms.ComposeSmsScreen
@@ -53,6 +54,7 @@ fun HubNavGraph(navController: NavHostController = rememberNavController()) {
                 onBack = { navController.popBackStack() },
                 onOpenTelegramSetup = { navController.navigate(Destinations.TELEGRAM_SETUP) },
                 onOpenMatrixSetup = { navController.navigate(Destinations.MATRIX_SETUP) },
+                onOpenImapSetup = { navController.navigate(Destinations.IMAP_SETUP) },
                 onOpenComposeSms = { navController.navigate(Destinations.COMPOSE_SMS) }
             )
         }
@@ -61,6 +63,9 @@ fun HubNavGraph(navController: NavHostController = rememberNavController()) {
         }
         composable(Destinations.MATRIX_SETUP) {
             MatrixSetupScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Destinations.IMAP_SETUP) {
+            ImapSetupScreen(onBack = { navController.popBackStack() })
         }
         composable(Destinations.COMPOSE_SMS) {
             ComposeSmsScreen(onBack = { navController.popBackStack() })

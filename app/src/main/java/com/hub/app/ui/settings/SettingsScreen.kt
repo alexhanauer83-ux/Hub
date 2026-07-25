@@ -49,6 +49,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenTelegramSetup: () -> Unit,
     onOpenMatrixSetup: () -> Unit,
+    onOpenImapSetup: () -> Unit,
     onOpenComposeSms: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = viewModel()
@@ -156,6 +157,12 @@ fun SettingsScreen(
                     modifier = Modifier.padding(horizontal = 8.dp)
                 ) {
                     Text("Matrix einrichten")
+                }
+                TextButton(
+                    onClick = onOpenImapSetup,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    Text("E-Mail (IMAP) einrichten")
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
