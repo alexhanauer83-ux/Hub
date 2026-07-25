@@ -7,6 +7,7 @@ import com.hub.app.data.local.entity.SourceAppEntity
 import com.hub.app.data.repository.MessageRepository
 import com.hub.app.di.ServiceLocator
 import com.hub.app.notification.NotificationAccess
+import com.hub.app.notification.NotificationSettings
 import com.hub.app.security.AppLockManager
 import com.hub.app.sms.SmsDefaultAppManager
 import com.hub.app.sms.SmsMessageSource
@@ -25,7 +26,8 @@ data class SettingsUiState(
     val isDefaultSmsApp: Boolean = false,
     val hasSmsReadPermission: Boolean = false,
     val isAppLockEnabled: Boolean = false,
-    val canUseAppLock: Boolean = false
+    val canUseAppLock: Boolean = false,
+    val replaceOtherNotifications: Boolean = false
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -34,6 +36,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val smsManager = SmsDefaultAppManager(application)
     private val smsSource = SmsMessageSource(application)
     private val appLock = AppLockManager(application)
+    private val notificationSettings = NotificationSettings(application)
 
     private val systemState = MutableStateFlow(readSystemState())
 
@@ -52,11 +55,17 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         isDefaultSmsApp = smsManager.isDefaultSmsApp(),
         hasSmsReadPermission = smsSource.hasReadPermission(),
         isAppLockEnabled = appLock.isLockEnabled,
-        canUseAppLock = appLock.canAuthenticate()
+        canUseAppLock = appLock.canAuthenticate(),
+        replaceOtherNotifications = notificationSettings.replaceOtherNotifications
     )
 
     fun setAppLockEnabled(enabled: Boolean) {
         appLock.isLockEnabled = enabled
+        refreshSystemState()
+    }
+
+    fun setReplaceOtherNotifications(enabled: Boolean) {
+        notificationSettings.replaceOtherNotifications = enabled
         refreshSystemState()
     }
 

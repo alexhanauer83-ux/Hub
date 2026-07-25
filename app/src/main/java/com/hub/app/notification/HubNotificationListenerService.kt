@@ -37,6 +37,7 @@ class HubNotificationListenerService : NotificationListenerService() {
     // stattdessen in der IO-Coroutine von handleNotification.
     private val repository: MessageRepository by lazy { ServiceLocator.messageRepository(this) }
     private val attachmentStore: AttachmentStore by lazy { AttachmentStore(this) }
+    private val notificationSettings: NotificationSettings by lazy { NotificationSettings(this) }
 
     override fun onListenerConnected() {
         super.onListenerConnected()
@@ -106,6 +107,15 @@ class HubNotificationListenerService : NotificationListenerService() {
                             notificationKey = sbn.key
                         )
                     )
+                }
+
+                // "Nur Hub anzeigen": eigene (lautlose) Benachrichtigung posten und die
+                // Original-Benachrichtigung aus der Statusleiste entfernen. cancelNotification
+                // loest onNotificationRemoved aus und macht damit auch die RemoteInput-Action
+                // ungueltig - bewusster Kompromiss (siehe Einstellungs-Hinweis).
+                if (notificationSettings.replaceOtherNotifications && sbn.isClearable) {
+                    HubNotifier.post(this@HubNotificationListenerService, incoming)
+                    runCatching { cancelNotification(sbn.key) }
                 }
             }.onFailure { Log.w(TAG, "Notification konnte nicht verarbeitet werden", it) }
         }

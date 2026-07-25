@@ -64,6 +64,12 @@ fun SettingsScreen(
         if (granted[Manifest.permission.READ_SMS] == true) viewModel.importSmsHistory()
     }
 
+    // POST_NOTIFICATIONS (Android 13+) wird gebraucht, damit Hub eigene Benachrichtigungen
+    // anzeigen kann - Voraussetzung fuer "nur Hub anzeigen".
+    val postNotifLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> viewModel.setReplaceOtherNotifications(granted) }
+
     LifecycleResumeEffect(Unit) {
         viewModel.refreshSystemState()
         onPauseOrDispose { }
@@ -98,6 +104,19 @@ fun SettingsScreen(
                     isAppLockEnabled = state.isAppLockEnabled,
                     canUseAppLock = state.canUseAppLock,
                     onToggleAppLock = viewModel::setAppLockEnabled
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
+                SectionHeader("Benachrichtigungen")
+                NotificationReplacementSection(
+                    enabled = state.replaceOtherNotifications,
+                    onToggle = { wantEnabled ->
+                        if (wantEnabled && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                            postNotifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            viewModel.setReplaceOtherNotifications(wantEnabled)
+                        }
+                    }
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
@@ -169,6 +188,37 @@ fun SettingsScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun NotificationReplacementSection(
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Nur Hub in der Statusleiste", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Hub entfernt eingehende Benachrichtigungen anderer Apps aus der " +
+                        "Statusleiste und zeigt stattdessen eine eigene.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(checked = enabled, onCheckedChange = onToggle)
+        }
+        if (enabled) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Hinweis: Der Ton der Original-App ertönt einmal, bevor Hub die " +
+                    "Benachrichtigung entfernt. Direktantwort (z. B. WhatsApp) funktioniert " +
+                    "danach nur noch eingeschränkt.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
         }
     }
 }
