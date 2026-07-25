@@ -87,7 +87,7 @@ class MatrixConnector(
                 val serverMsg = errorMessage(first.errorBody()?.string(), "Registrierung fehlgeschlagen")
                 throw IllegalStateException(
                     "$serverMsg\n\nDieser Homeserver erlaubt keine Registrierung über Hub. " +
-                        "Lege dein Konto beim Anbieter (z. B. Element/Website) an und melde dich hier mit „Anmelden" an."
+                        "Lege dein Konto beim Anbieter (z. B. Element/Website) an und melde dich hier mit „Anmelden“ an."
                 )
             }
 

@@ -44,6 +44,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenTelegramSetup: () -> Unit,
     onOpenMatrixSetup: () -> Unit,
+    onOpenComposeSms: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = viewModel()
 ) {
@@ -139,6 +140,12 @@ fun SettingsScreen(
                     },
                     onImportHistory = viewModel::importSmsHistory
                 )
+                TextButton(
+                    onClick = onOpenComposeSms,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    Text("SMS schreiben (mit Kontakten)")
+                }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                 SectionHeader("Quellen")
             }

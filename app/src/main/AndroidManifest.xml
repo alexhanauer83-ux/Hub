@@ -23,6 +23,10 @@
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_MMS" />
     <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH" />
+
+    <!-- Fuer die Empfaengerauswahl beim SMS-Verfassen. Wird zur Laufzeit abgefragt und
+         nur lokal zur Anzeige/Auswahl genutzt. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
     <!-- Seit Android 11 sind installierte Apps standardmaessig fuereinander unsichtbar

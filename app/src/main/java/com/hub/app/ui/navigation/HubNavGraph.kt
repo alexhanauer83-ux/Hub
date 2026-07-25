@@ -13,6 +13,7 @@ import com.hub.app.ui.hub.HubScreen
 import com.hub.app.ui.onboarding.OnboardingScreen
 import com.hub.app.ui.settings.MatrixSetupScreen
 import com.hub.app.ui.settings.SettingsScreen
+import com.hub.app.ui.sms.ComposeSmsScreen
 import com.hub.app.ui.settings.TelegramSetupScreen
 
 @Composable
@@ -51,7 +52,8 @@ fun HubNavGraph(navController: NavHostController = rememberNavController()) {
             SettingsScreen(
                 onBack = { navController.popBackStack() },
                 onOpenTelegramSetup = { navController.navigate(Destinations.TELEGRAM_SETUP) },
-                onOpenMatrixSetup = { navController.navigate(Destinations.MATRIX_SETUP) }
+                onOpenMatrixSetup = { navController.navigate(Destinations.MATRIX_SETUP) },
+                onOpenComposeSms = { navController.navigate(Destinations.COMPOSE_SMS) }
             )
         }
         composable(Destinations.TELEGRAM_SETUP) {
@@ -59,6 +61,9 @@ fun HubNavGraph(navController: NavHostController = rememberNavController()) {
         }
         composable(Destinations.MATRIX_SETUP) {
             MatrixSetupScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Destinations.COMPOSE_SMS) {
+            ComposeSmsScreen(onBack = { navController.popBackStack() })
         }
     }
 }

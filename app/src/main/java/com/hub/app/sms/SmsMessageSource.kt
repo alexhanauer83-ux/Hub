@@ -108,30 +108,40 @@ class SmsMessageSource(private val context: Context) : MessageSource {
      */
     override suspend fun sendReply(target: ReplyTarget, text: String): Result<Unit> =
         withContext(Dispatchers.IO) {
-            if (!hasSendPermission()) {
-                return@withContext Result.failure(SecurityException("SEND_SMS nicht erteilt"))
-            }
             val address = resolveAddress(target.messageId)
                 ?: return@withContext Result.failure(
                     IllegalStateException("Zieladresse konnte nicht ermittelt werden")
                 )
+            sendSms(address, text)
+        }
 
-            runCatching {
-                val smsManager = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                    context.getSystemService(SmsManager::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    SmsManager.getDefault()
-                }
-                // Lange Texte muessen zerlegt werden, sonst wirft SmsManager.
-                val parts = smsManager.divideMessage(text)
-                if (parts.size == 1) {
-                    smsManager.sendTextMessage(address, null, text, null, null)
-                } else {
-                    smsManager.sendMultipartTextMessage(address, null, parts, null, null)
-                }
+    /**
+     * Sendet eine SMS direkt an eine Telefonnummer (für das Verfassen neuer Nachrichten).
+     * Setzt nur die SEND_SMS-Berechtigung voraus – Hub muss dafür **nicht** Standard-SMS-App
+     * sein. Lange Texte werden automatisch in mehrteilige SMS zerlegt.
+     */
+    suspend fun sendSms(address: String, text: String): Result<Unit> = withContext(Dispatchers.IO) {
+        if (!hasSendPermission()) {
+            return@withContext Result.failure(SecurityException("SEND_SMS nicht erteilt"))
+        }
+        if (address.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("Keine Zielnummer"))
+        }
+        runCatching {
+            val smsManager = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                context.getSystemService(SmsManager::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                SmsManager.getDefault()
+            }
+            val parts = smsManager.divideMessage(text)
+            if (parts.size == 1) {
+                smsManager.sendTextMessage(address, null, text, null, null)
+            } else {
+                smsManager.sendMultipartTextMessage(address, null, parts, null, null)
             }
         }
+    }
 
     /**
      * Löst die Telefonnummer zu einer Hub-Message-ID auf.
