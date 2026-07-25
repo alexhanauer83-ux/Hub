@@ -73,6 +73,18 @@
             android:name=".notification.HubReplyReceiver"
             android:exported="false" />
 
+        <!-- Homescreen-Widget: neueste Nachrichten auf einen Blick. -->
+        <receiver
+            android:name=".widget.HubWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/hub_widget_info" />
+        </receiver>
+
         <!-- Teilt die heruntergeladene Update-APK sicher mit dem System-Installer. -->
         <provider
             android:name="androidx.core.content.FileProvider"

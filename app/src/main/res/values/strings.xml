@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Hub</string>
+    <string name="widget_description">Neueste Nachrichten aus dem Hub auf einen Blick</string>
 </resources>

@@ -40,6 +40,21 @@ interface MessageDao {
     @Query("SELECT sourceKey AS sourceKey, COUNT(*) AS count FROM messages WHERE isArchived = 0 AND isRead = 0 GROUP BY sourceKey")
     fun observeSourceCounts(): Flow<List<SourceCount>>
 
+    /** Einmaliger Schnappschuss des Posteingangs fuer das Homescreen-Widget. */
+    @Query(
+        """
+        SELECT m.* FROM messages m
+        LEFT JOIN source_apps s ON m.sourceKey = s.sourceKey
+        WHERE m.isArchived = 0 AND (m.isRead = 0 OR s.isNativeConnector = 1)
+        ORDER BY m.timestamp DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun inboxSnapshot(limit: Int): List<MessageEntity>
+
+    @Query("SELECT COUNT(*) FROM messages WHERE isArchived = 0 AND isRead = 0")
+    suspend fun unreadCount(): Int
+
     /**
      * Priority Hub: Nachrichten, die entweder manuell priorisiert wurden, deren Quelle
      * insgesamt priorisiert ist, oder deren Absender als priorisierter Kontakt geführt wird.

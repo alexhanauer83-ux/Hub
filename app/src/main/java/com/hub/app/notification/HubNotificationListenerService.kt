@@ -97,6 +97,7 @@ class HubNotificationListenerService : NotificationListenerService() {
                 if (!repository.isSourceEnabled(incoming.sourceKey)) return@runCatching
 
                 repository.ingest(withAttachments(sbn, incoming))
+                com.hub.app.widget.HubWidgetProvider.requestUpdate(applicationContext)
 
                 // contentIntent merken, damit ein Tipp auf die Nachricht die App an der
                 // richtigen Stelle öffnet (siehe HubViewModel.openMessage).
