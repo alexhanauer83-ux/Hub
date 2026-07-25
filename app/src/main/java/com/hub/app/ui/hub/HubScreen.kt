@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
@@ -77,8 +78,9 @@ fun HubScreen(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    // Titel spiegelt die aktive Auswahl: gewählte Quelle > Priority Hub > Posteingang.
+    // Titel spiegelt die aktive Auswahl: Unterhaltung > Quelle > Priority Hub > Posteingang.
     val title = when {
+        state.conversationFilter != null -> state.conversationFilter!!.title
         state.sourceFilter != null ->
             state.sources.firstOrNull { it.sourceKey == state.sourceFilter }?.label ?: "Hub"
         state.tab == HubTab.PRIORITAET -> "Priority Hub"
@@ -106,9 +108,16 @@ fun HubScreen(
                 TopAppBar(
                     title = { Text(title) },
                     navigationIcon = {
-                        // Menü öffnet sich auch per Wisch von links (ModalNavigationDrawer-Geste).
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Quellen")
+                        if (state.conversationFilter != null) {
+                            // Im Konversations-Verlauf: zurück zur Übersicht.
+                            IconButton(onClick = { viewModel.closeConversation() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
+                            }
+                        } else {
+                            // Menü öffnet sich auch per Wisch von links (ModalNavigationDrawer-Geste).
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Default.Menu, contentDescription = "Quellen")
+                            }
                         }
                     },
                     actions = {
@@ -154,23 +163,41 @@ fun HubScreen(
                     AccessBanner(onOpenOnboarding)
                 }
 
-                // Ansichts-Tabs nur ohne aktiven Quellenfilter; ist eine App gewählt, zeigt
-                // der Feed alle ihre Nachrichten.
-                if (state.sourceFilter == null) {
+                // Tabs + Gruppieren-Umschalter nur in der Übersicht (kein Quellen-/Konversationsfilter).
+                if (state.sourceFilter == null && state.conversationFilter == null) {
                     HubFilterBar(
                         selectedTab = state.tab,
                         onSelectTab = viewModel::selectTab
                     )
+                    if (state.tab == HubTab.POSTEINGANG) {
+                        androidx.compose.foundation.layout.Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+                        ) {
+                            androidx.compose.material3.FilterChip(
+                                selected = state.grouped,
+                                onClick = { viewModel.setGrouped(!state.grouped) },
+                                label = { Text(if (state.grouped) "Gruppiert" else "Einzeln") }
+                            )
+                        }
+                    }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                }
+
+                if (state.showConversations) {
+                    ConversationList(
+                        conversations = state.conversations,
+                        onOpen = viewModel::openConversation
+                    )
+                    return@Column
                 }
 
                 MessageList(
                     messages = state.messages,
-                    isArchiveView = state.tab == HubTab.ARCHIV && state.sourceFilter == null,
-                    emptyHint = if (state.sourceFilter != null) {
-                        "Keine Nachrichten dieser App"
-                    } else {
-                        emptyHintFor(state.tab)
+                    isArchiveView = state.tab == HubTab.ARCHIV && state.sourceFilter == null && state.conversationFilter == null,
+                    emptyHint = when {
+                        state.conversationFilter != null -> "Keine Nachrichten in dieser Unterhaltung"
+                        state.sourceFilter != null -> "Keine Nachrichten dieser App"
+                        else -> emptyHintFor(state.tab)
                     },
                     onOpen = viewModel::openMessage,
                     onReply = { replyMessage = it },
@@ -260,6 +287,31 @@ private fun AccessBanner(onOpenOnboarding: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Button(onClick = onOpenOnboarding) { Text("Einrichten") }
+    }
+}
+
+@Composable
+private fun ConversationList(
+    conversations: List<ConversationSummary>,
+    onOpen: (ConversationRef) -> Unit
+) {
+    if (conversations.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                text = "Keine Unterhaltungen",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(32.dp)
+            )
+        }
+        return
+    }
+    LazyColumn(Modifier.fillMaxSize()) {
+        items(conversations, key = { it.sourceKey + "/" + it.groupValue }) { conversation ->
+            ConversationRow(conversation = conversation, onClick = { onOpen(conversation.ref) })
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        }
     }
 }
 

@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -30,14 +31,51 @@ import kotlinx.coroutines.launch
  */
 enum class HubTab { POSTEINGANG, PRIORITAET, ARCHIV }
 
+/** Referenz auf eine Unterhaltung (Chat/Kontakt). */
+data class ConversationRef(val sourceKey: String, val groupValue: String, val title: String)
+
+/** Zusammenfassung einer Unterhaltung für die gruppierte Liste. */
+data class ConversationSummary(
+    val sourceKey: String,
+    val groupValue: String,
+    val title: String,
+    val sourceLabel: String,
+    val packageName: String?,
+    val latestContent: String,
+    val latestTimestamp: Long,
+    val total: Int,
+    val unread: Int,
+    val isRedacted: Boolean,
+    val hasImage: Boolean
+) {
+    val ref get() = ConversationRef(sourceKey, groupValue, title)
+}
+
+/** Der Gruppenschlüssel einer Nachricht: Konversationstitel, sonst Absender. */
+fun MessageEntity.groupValue(): String = conversationId?.takeIf { it.isNotBlank() } ?: sender
+
 data class HubUiState(
     val messages: List<MessageEntity> = emptyList(),
+    val conversations: List<ConversationSummary> = emptyList(),
     val sources: List<SourceAppEntity> = emptyList(),
     /** sourceKey -> Anzahl aktiver Nachrichten, für die Badges im Drawer. */
     val sourceCounts: Map<String, Int> = emptyMap(),
     val tab: HubTab = HubTab.POSTEINGANG,
     val sourceFilter: String? = null,
+    val conversationFilter: ConversationRef? = null,
+    val grouped: Boolean = true,
     val hasNotificationAccess: Boolean = false
+) {
+    /** Gruppierte Übersicht anzeigen? Nur im Posteingang ohne aktive Filter. */
+    val showConversations: Boolean
+        get() = grouped && conversationFilter == null && sourceFilter == null && tab == HubTab.POSTEINGANG
+}
+
+private data class FeedFilter(
+    val tab: HubTab,
+    val sourceFilter: String?,
+    val conversationFilter: ConversationRef?,
+    val grouped: Boolean
 )
 
 class HubViewModel(application: Application) : AndroidViewModel(application) {
@@ -53,43 +91,85 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
     val quickReplyState: StateFlow<QuickReplyState> = _quickReplyState.asStateFlow()
 
     private val _sourceFilter = MutableStateFlow<String?>(null)
+    private val _conversationFilter = MutableStateFlow<ConversationRef?>(null)
+    private val _grouped = MutableStateFlow(true)
     private val _hasNotificationAccess = MutableStateFlow(NotificationAccess.isGranted(application))
 
+    private val filter = combine(_tab, _sourceFilter, _conversationFilter, _grouped) { tab, src, conv, grouped ->
+        FeedFilter(tab, src, conv, grouped)
+    }
+
     @OptIn(ExperimentalCoroutinesApi::class)
-    private val messages = combine(_tab, _sourceFilter) { tab, source -> tab to source }
-        .flatMapLatest { (tab, source) ->
-            when {
-                // Ein aktiver Quellenfilter (Drawer-Auswahl) gewinnt immer gegenüber dem Tab
-                // und zeigt ALLE Nachrichten der App.
-                source != null -> repository.observeBySource(source)
-                tab == HubTab.PRIORITAET -> repository.observePriorityHub()
-                tab == HubTab.ARCHIV -> repository.observeArchived()
-                else -> repository.observeInbox()
-            }
+    private val messages = filter.flatMapLatest { f ->
+        when {
+            f.conversationFilter != null ->
+                repository.observeConversation(f.conversationFilter.sourceKey, f.conversationFilter.groupValue)
+            f.sourceFilter != null -> repository.observeBySource(f.sourceFilter)
+            f.tab == HubTab.PRIORITAET -> repository.observePriorityHub()
+            f.tab == HubTab.ARCHIV -> repository.observeArchived()
+            else -> repository.observeInbox()
         }
+    }
+
+    // Gruppierte Übersicht: aus dem Posteingang zu Unterhaltungen zusammengefasst.
+    private val conversations = repository.observeInbox().map { groupIntoConversations(it) }
 
     private val sourceCounts = repository.observeSourceCounts()
 
     val uiState: StateFlow<HubUiState> = combine(
         messages,
+        conversations,
         repository.observeSources(),
-        sourceCounts,
-        _tab,
-        combine(_sourceFilter, _hasNotificationAccess) { filter, access -> filter to access }
-    ) { messages, sources, counts, tab, (sourceFilter, access) ->
+        combine(sourceCounts, _hasNotificationAccess) { counts, access -> counts to access },
+        filter
+    ) { messages, conversations, sources, (counts, access), f ->
         HubUiState(
             messages = messages,
+            conversations = conversations,
             sources = sources,
             sourceCounts = counts.associate { it.sourceKey to it.count },
-            tab = tab,
-            sourceFilter = sourceFilter,
+            tab = f.tab,
+            sourceFilter = f.sourceFilter,
+            conversationFilter = f.conversationFilter,
+            grouped = f.grouped,
             hasNotificationAccess = access
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HubUiState())
 
-    fun selectTab(tab: HubTab) { _tab.value = tab }
+    private fun groupIntoConversations(messages: List<MessageEntity>): List<ConversationSummary> =
+        messages.groupBy { it.sourceKey to it.groupValue() }
+            .map { (key, msgs) ->
+                // observeInbox liefert bereits nach Zeit absteigend -> erstes = neuestes.
+                val latest = msgs.first()
+                ConversationSummary(
+                    sourceKey = key.first,
+                    groupValue = key.second,
+                    title = latest.groupValue(),
+                    sourceLabel = latest.sourceLabel,
+                    packageName = latest.sourcePackageName,
+                    latestContent = latest.content,
+                    latestTimestamp = latest.timestamp,
+                    total = msgs.size,
+                    unread = msgs.count { !it.isRead },
+                    isRedacted = latest.isContentRedacted,
+                    hasImage = latest.imageUri != null
+                )
+            }
+            .sortedByDescending { it.latestTimestamp }
 
-    fun selectSourceFilter(sourceKey: String?) { _sourceFilter.value = sourceKey }
+    fun selectTab(tab: HubTab) {
+        _tab.value = tab
+        _conversationFilter.value = null
+    }
+
+    fun selectSourceFilter(sourceKey: String?) {
+        _sourceFilter.value = sourceKey
+        _conversationFilter.value = null
+    }
+
+    fun openConversation(ref: ConversationRef) { _conversationFilter.value = ref }
+    fun closeConversation() { _conversationFilter.value = null }
+    fun setGrouped(grouped: Boolean) { _grouped.value = grouped }
 
     /** Nach Rückkehr aus den Systemeinstellungen erneut prüfen. */
     fun refreshNotificationAccess() {

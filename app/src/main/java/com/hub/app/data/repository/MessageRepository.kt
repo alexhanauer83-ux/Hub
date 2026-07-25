@@ -60,6 +60,8 @@ class MessageRepository(
     fun observeArchived(): Flow<List<MessageEntity>> = messageDao.observeArchived()
     fun observeUnread(): Flow<List<MessageEntity>> = messageDao.observeUnread()
     fun observeBySource(sourceKey: String): Flow<List<MessageEntity>> = messageDao.observeBySource(sourceKey)
+    fun observeConversation(sourceKey: String, groupValue: String): Flow<List<MessageEntity>> =
+        messageDao.observeConversation(sourceKey, groupValue)
     fun observePriorityHub(): Flow<List<MessageEntity>> = messageDao.observePriorityHub()
     fun observeSources(): Flow<List<SourceAppEntity>> = sourceAppDao.observeAll()
     fun observeSourceCounts(): Flow<List<com.hub.app.data.local.dao.SourceCount>> = messageDao.observeSourceCounts()

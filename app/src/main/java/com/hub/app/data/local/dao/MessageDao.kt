@@ -36,6 +36,22 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE isArchived = 0 AND sourceKey = :sourceKey ORDER BY timestamp DESC")
     fun observeBySource(sourceKey: String): Flow<List<MessageEntity>>
 
+    /**
+     * Alle Nachrichten einer Unterhaltung (chronologisch, wie ein Chatverlauf).
+     * Der Gruppenschlüssel ist die Konversation (conversationId) bzw. – falls leer – der
+     * Absender; COALESCE(NULLIF(...)) bildet genau diese Logik in SQL ab.
+     */
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE sourceKey = :sourceKey
+          AND COALESCE(NULLIF(conversationId, ''), sender) = :groupValue
+          AND isArchived = 0
+        ORDER BY timestamp ASC
+        """
+    )
+    fun observeConversation(sourceKey: String, groupValue: String): Flow<List<MessageEntity>>
+
     /** Anzahl aktiver (ungelesener, nicht archivierter) Nachrichten je Quelle - fuer die Badges im Drawer. */
     @Query("SELECT sourceKey AS sourceKey, COUNT(*) AS count FROM messages WHERE isArchived = 0 AND isRead = 0 GROUP BY sourceKey")
     fun observeSourceCounts(): Flow<List<SourceCount>>
