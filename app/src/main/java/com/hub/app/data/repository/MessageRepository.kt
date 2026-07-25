@@ -24,7 +24,13 @@ class MessageRepository(
         val source = sourceAppDao.getBySourceKey(message.sourceKey)
         if (source != null && !source.enabled) return // Nutzer hat diese Quelle deaktiviert
 
-        val isPriority = source?.isPriority == true
+        // Dieselbe Benachrichtigung wird vom Listener mehrfach eingelesen (App-Updates der
+        // Notification, erneutes Verbinden des Services). Da die stableId gleich bleibt,
+        // wuerde ein naives Upsert den vom Nutzer gesetzten Zustand (gelesen/archiviert/
+        // priorisiert) jedes Mal ueberschreiben. Deshalb den bestehenden Zustand bewahren.
+        val existing = messageDao.getById(message.stableId)
+        val sourcePriority = source?.isPriority == true
+
         messageDao.upsert(
             MessageEntity(
                 id = message.stableId,
@@ -36,7 +42,9 @@ class MessageRepository(
                 content = message.content,
                 timestamp = message.timestamp,
                 category = message.category,
-                priority = isPriority,
+                isRead = existing?.isRead ?: false,
+                isArchived = existing?.isArchived ?: false,
+                priority = existing?.priority ?: sourcePriority,
                 isContentRedacted = message.isContentRedacted,
                 hasQuickReply = message.hasQuickReply,
                 iconUri = message.iconUri
