@@ -14,3 +14,6 @@ local.properties
 
 # Claude Code lokale Session-Konfiguration
 .claude/
+
+# Signier-Keystore NIE committen
+*.jks
