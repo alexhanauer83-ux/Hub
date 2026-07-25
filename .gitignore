@@ -11,3 +11,6 @@ local.properties
 *.hprof
 /app/build/
 /app/release/
+
+# Claude Code lokale Session-Konfiguration
+.claude/

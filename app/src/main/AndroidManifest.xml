@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Ab Android 13 nötig, damit Hub eigene Hinweise (z. B. Fehler eines Connectors)
+         anzeigen darf. Nicht für das Mitlesen fremder Notifications - das regelt
+         ausschliesslich der Notification-Listener-Zugriff unten. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- QUERY_ALL_PACKAGES waere fuer App-Namen/Icons bequem, wird hier aber bewusst
+         NICHT angefordert: Der NotificationListenerService liefert den Paketnamen der
+         Quell-App ohnehin, und der Zugriff auf deren Label/Icon ist darueber erlaubt. -->
+
     <application
         android:name=".HubApplication"
         android:allowBackup="false"
@@ -19,6 +28,22 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Kernfunktion 1: Notification-Aggregation.
+             - Die Signatur-Permission BIND_NOTIFICATION_LISTENER_SERVICE stellt sicher,
+               dass ausschliesslich das System diesen Service binden darf.
+             - exported=true ist Pflicht (Intent-Filter + Bindung von ausserhalb der App).
+             - Die Berechtigung selbst kann nicht per Runtime-Dialog angefragt werden;
+               der Nutzer erteilt sie in den Systemeinstellungen (siehe NotificationAccess). -->
+        <service
+            android:name=".notification.HubNotificationListenerService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
 
     </application>
 
