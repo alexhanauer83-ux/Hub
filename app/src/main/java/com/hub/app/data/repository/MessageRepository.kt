@@ -65,6 +65,7 @@ class MessageRepository(
     fun observePriorityHub(): Flow<List<MessageEntity>> = messageDao.observePriorityHub()
     fun observeSources(): Flow<List<SourceAppEntity>> = sourceAppDao.observeAll()
     fun observeSourceCounts(): Flow<List<com.hub.app.data.local.dao.SourceCount>> = messageDao.observeSourceCounts()
+    fun search(query: String): Flow<List<MessageEntity>> = messageDao.search(query)
     suspend fun inboxSnapshot(limit: Int): List<MessageEntity> = messageDao.inboxSnapshot(limit)
     suspend fun unreadCount(): Int = messageDao.unreadCount()
     fun observePriorityContacts(): Flow<List<PriorityContactEntity>> = priorityContactDao.observeAll()

@@ -71,6 +71,18 @@ interface MessageDao {
     @Query("SELECT COUNT(*) FROM messages WHERE isArchived = 0 AND isRead = 0")
     suspend fun unreadCount(): Int
 
+    /** Volltextsuche über Absender und Inhalt (einfaches LIKE, nicht archivierte Nachrichten). */
+    @Query(
+        """
+        SELECT * FROM messages
+        WHERE isArchived = 0
+          AND (sender LIKE '%' || :query || '%' OR content LIKE '%' || :query || '%')
+        ORDER BY timestamp DESC
+        LIMIT 300
+        """
+    )
+    fun search(query: String): Flow<List<MessageEntity>>
+
     /**
      * Priority Hub: Nachrichten, die entweder manuell priorisiert wurden, deren Quelle
      * insgesamt priorisiert ist, oder deren Absender als priorisierter Kontakt geführt wird.

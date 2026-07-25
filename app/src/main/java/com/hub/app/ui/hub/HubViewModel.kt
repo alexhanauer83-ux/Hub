@@ -64,18 +64,23 @@ data class HubUiState(
     val sourceFilter: String? = null,
     val conversationFilter: ConversationRef? = null,
     val grouped: Boolean = true,
+    val searchQuery: String? = null,
     val hasNotificationAccess: Boolean = false
 ) {
-    /** Gruppierte Übersicht anzeigen? Nur im Posteingang ohne aktive Filter. */
+    val isSearching: Boolean get() = searchQuery != null
+
+    /** Gruppierte Übersicht anzeigen? Nur im Posteingang ohne aktive Filter/Suche. */
     val showConversations: Boolean
-        get() = grouped && conversationFilter == null && sourceFilter == null && tab == HubTab.POSTEINGANG
+        get() = grouped && !isSearching && conversationFilter == null &&
+            sourceFilter == null && tab == HubTab.POSTEINGANG
 }
 
 private data class FeedFilter(
     val tab: HubTab,
     val sourceFilter: String?,
     val conversationFilter: ConversationRef?,
-    val grouped: Boolean
+    val grouped: Boolean,
+    val searchQuery: String?
 )
 
 class HubViewModel(application: Application) : AndroidViewModel(application) {
@@ -93,15 +98,20 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
     private val _sourceFilter = MutableStateFlow<String?>(null)
     private val _conversationFilter = MutableStateFlow<ConversationRef?>(null)
     private val _grouped = MutableStateFlow(true)
+    private val _searchQuery = MutableStateFlow<String?>(null)
     private val _hasNotificationAccess = MutableStateFlow(NotificationAccess.isGranted(application))
 
-    private val filter = combine(_tab, _sourceFilter, _conversationFilter, _grouped) { tab, src, conv, grouped ->
-        FeedFilter(tab, src, conv, grouped)
+    private val filter = combine(
+        _tab, _sourceFilter, _conversationFilter, _grouped, _searchQuery
+    ) { tab, src, conv, grouped, query ->
+        FeedFilter(tab, src, conv, grouped, query)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val messages = filter.flatMapLatest { f ->
+        val query = f.searchQuery?.trim()
         when {
+            !query.isNullOrBlank() -> repository.search(query)
             f.conversationFilter != null ->
                 repository.observeConversation(f.conversationFilter.sourceKey, f.conversationFilter.groupValue)
             f.sourceFilter != null -> repository.observeBySource(f.sourceFilter)
@@ -132,6 +142,7 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
             sourceFilter = f.sourceFilter,
             conversationFilter = f.conversationFilter,
             grouped = f.grouped,
+            searchQuery = f.searchQuery,
             hasNotificationAccess = access
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HubUiState())
@@ -170,6 +181,10 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
     fun openConversation(ref: ConversationRef) { _conversationFilter.value = ref }
     fun closeConversation() { _conversationFilter.value = null }
     fun setGrouped(grouped: Boolean) { _grouped.value = grouped }
+
+    fun startSearch() { _searchQuery.value = "" }
+    fun setSearchQuery(query: String) { _searchQuery.value = query }
+    fun stopSearch() { _searchQuery.value = null }
 
     /** Nach Rückkehr aus den Systemeinstellungen erneut prüfen. */
     fun refreshNotificationAccess() {

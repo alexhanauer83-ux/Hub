@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
@@ -28,6 +29,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
@@ -106,21 +109,43 @@ fun HubScreen(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
                 TopAppBar(
-                    title = { Text(title) },
+                    title = {
+                        if (state.isSearching) {
+                            TextField(
+                                value = state.searchQuery.orEmpty(),
+                                onValueChange = viewModel::setSearchQuery,
+                                placeholder = { Text("Suchen …") },
+                                singleLine = true,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
+                                )
+                            )
+                        } else {
+                            Text(title)
+                        }
+                    },
                     navigationIcon = {
-                        if (state.conversationFilter != null) {
-                            // Im Konversations-Verlauf: zurück zur Übersicht.
-                            IconButton(onClick = { viewModel.closeConversation() }) {
+                        when {
+                            state.isSearching -> IconButton(onClick = { viewModel.stopSearch() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Suche schließen")
+                            }
+                            state.conversationFilter != null -> IconButton(onClick = { viewModel.closeConversation() }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Zurück")
                             }
-                        } else {
-                            // Menü öffnet sich auch per Wisch von links (ModalNavigationDrawer-Geste).
-                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            else -> IconButton(onClick = { scope.launch { drawerState.open() } }) {
                                 Icon(Icons.Default.Menu, contentDescription = "Quellen")
                             }
                         }
                     },
                     actions = {
+                      // Im Suchmodus keine weiteren Aktionen (Fokus auf dem Suchfeld).
+                      if (!state.isSearching) {
+                        IconButton(onClick = { viewModel.startSearch() }) {
+                            Icon(Icons.Default.Search, contentDescription = "Suchen", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         IconButton(onClick = {
                             viewModel.selectTab(
                                 if (state.tab == HubTab.PRIORITAET) HubTab.POSTEINGANG else HubTab.PRIORITAET
@@ -150,6 +175,7 @@ fun HubScreen(
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                      }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background,
