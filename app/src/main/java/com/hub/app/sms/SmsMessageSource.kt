@@ -5,7 +5,6 @@ import android.content.ContentResolver
 import android.content.Context
 import android.content.pm.PackageManager
 import android.database.Cursor
-import android.net.Uri
 import android.provider.Telephony
 import android.telephony.SmsManager
 import android.util.Log
@@ -135,17 +134,27 @@ class SmsMessageSource(private val context: Context) : MessageSource {
         }
 
     /**
-     * Löst die Telefonnummer zu einer Hub-Message-ID auf. Die ID hat das Format
-     * "sms:<provider-row-id>" (siehe [IncomingMessage.stableId]).
+     * Löst die Telefonnummer zu einer Hub-Message-ID auf.
+     *
+     * Es gibt zwei Herkünfte mit unterschiedlichem ID-Format, beide über
+     * [IncomingMessage.stableId] mit "sms:" präfigiert:
+     *  - [importInbox] verwendet die Provider-Row-ID (rein numerisch) → Nummer per Query.
+     *  - [SmsReceiver] hat beim Empfang noch keine Row-ID und verwendet
+     *    "<nummer>@<zeitstempel>" → die Nummer steht direkt in der ID.
      */
     private fun resolveAddress(messageId: String): String? {
-        val rowId = messageId.removePrefix("$SOURCE_KEY:").takeIf { it != messageId } ?: return null
+        val rawId = messageId.removePrefix("$SOURCE_KEY:").takeIf { it != messageId } ?: return null
+
+        if (!rawId.all { it.isDigit() }) {
+            return rawId.substringBefore('@').takeIf { it.isNotBlank() && it != rawId }
+        }
+
         return runCatching {
             context.contentResolver.query(
                 Telephony.Sms.CONTENT_URI,
                 arrayOf(Telephony.Sms.ADDRESS),
                 "${Telephony.Sms._ID} = ?",
-                arrayOf(rowId),
+                arrayOf(rawId),
                 null
             )?.use { cursor ->
                 if (cursor.moveToFirst()) cursor.getString(0) else null
@@ -166,7 +175,5 @@ class SmsMessageSource(private val context: Context) : MessageSource {
         const val SOURCE_KEY = "sms"
         private const val TAG = "SmsMessageSource"
         private const val IMPORT_LIMIT = 500
-
-        val INBOX_URI: Uri = Telephony.Sms.Inbox.CONTENT_URI
     }
 }
