@@ -3,6 +3,7 @@ package com.hub.app.ui.hub
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -54,6 +56,37 @@ fun MessageRow(
     onLongPress: (() -> Unit)? = null,
     onReply: (() -> Unit)? = null
 ) {
+    // Eigene, gesendete Antwort: rechtsbündige Blase.
+    if (message.isOutgoing) {
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                modifier = Modifier
+                    .widthIn(max = 280.dp)
+                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(14.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = message.content,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+                Text(
+                    text = formatTimestamp(message.timestamp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
+                )
+            }
+        }
+        return
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()

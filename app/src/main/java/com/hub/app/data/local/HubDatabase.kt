@@ -19,9 +19,9 @@ import com.hub.app.data.local.entity.SourceAppEntity
  */
 @Database(
     entities = [MessageEntity::class, SourceAppEntity::class, PriorityContactEntity::class],
-    // v3: snoozeUntil in MessageEntity (davor v2: image/audioUri). Migration ist destruktiv
-    // (fallbackToDestructiveMigration), da die DB nur ein lokaler Nachrichten-Cache ist.
-    version = 3,
+    // v4: isOutgoing (eigene Antworten im Verlauf). Davor v3 snooze, v2 image/audioUri.
+    // Migration destruktiv (fallbackToDestructiveMigration) – DB ist nur lokaler Cache.
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(Converters::class)

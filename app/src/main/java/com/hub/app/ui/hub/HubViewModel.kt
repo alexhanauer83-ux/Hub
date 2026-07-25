@@ -246,8 +246,9 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
         )
         _quickReplyState.value = result.fold(
             onSuccess = {
-                // Wer antwortet, hat gelesen.
+                // Wer antwortet, hat gelesen. Antwort im Chatverlauf ablegen.
                 repository.markRead(message.id)
+                repository.recordOutgoing(message, text)
                 QuickReplyState.Sent
             },
             onFailure = { error ->

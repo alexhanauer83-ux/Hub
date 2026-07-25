@@ -59,5 +59,7 @@ data class MessageEntity(
     /** Lokale file://-URI eines Audioanhangs, sofern die App ihn mitgeliefert hat, sonst null. */
     val audioUri: String? = null,
     /** Zurückgestellt ("snooze") bis zu diesem Zeitpunkt (epoch ms); solange aus dem Feed ausgeblendet. */
-    val snoozeUntil: Long? = null
+    val snoozeUntil: Long? = null,
+    /** true = von mir gesendete Antwort (im Chatverlauf rechts dargestellt). */
+    val isOutgoing: Boolean = false
 )

@@ -25,7 +25,10 @@ object MessageReplyRouter {
             ReplyTarget(messageId = message.id, conversationId = message.conversationId),
             text
         )
-        if (result.isSuccess) repository.markRead(messageId)
+        if (result.isSuccess) {
+            repository.markRead(messageId)
+            repository.recordOutgoing(message, text)
+        }
         return result
     }
 

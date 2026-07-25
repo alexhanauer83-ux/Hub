@@ -78,6 +78,30 @@ class MessageRepository(
     suspend fun delete(id: String) = messageDao.delete(id)
     suspend fun getById(id: String): MessageEntity? = messageDao.getById(id)
 
+    /**
+     * Legt eine von mir gesendete Antwort als ausgehende Nachricht im selben Chatverlauf ab.
+     * conversationId wird auf den Gruppenschlüssel des Originals gesetzt, damit sie im
+     * Verlauf (observeConversation) korrekt einsortiert wird.
+     */
+    suspend fun recordOutgoing(original: MessageEntity, text: String) {
+        val groupValue = original.conversationId?.takeIf { it.isNotBlank() } ?: original.sender
+        messageDao.upsert(
+            MessageEntity(
+                id = "out:${original.sourceKey}:${System.currentTimeMillis()}:${text.hashCode()}",
+                sourceKey = original.sourceKey,
+                sourceLabel = original.sourceLabel,
+                sourcePackageName = original.sourcePackageName,
+                conversationId = groupValue,
+                sender = "Du",
+                content = text,
+                timestamp = System.currentTimeMillis(),
+                category = original.category,
+                isRead = true,
+                isOutgoing = true
+            )
+        )
+    }
+
     suspend fun markAllRead() = messageDao.markAllRead()
     suspend fun markReadIn(ids: List<String>) = messageDao.markReadIn(ids)
     suspend fun archiveIn(ids: List<String>) = messageDao.archiveIn(ids)
