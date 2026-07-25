@@ -1,0 +1,11 @@
+<resources>
+    <!-- Base platform theme; actual theming (dark-by-default, Hub palette) lives in
+         Compose (ui/theme/Theme.kt). This just sets the window background before
+         Compose's first frame so there's no white flash. -->
+    <style name="Theme.Hub" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/hub_background</item>
+        <item name="android:statusBarColor">@color/hub_background</item>
+        <item name="android:navigationBarColor">@color/hub_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
