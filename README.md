@@ -48,9 +48,11 @@ geschrieben. Zum Bauen:
 | SMS-Set (`RECEIVE_SMS`, `READ_SMS`, `SEND_SMS`, `RECEIVE_MMS`, `RECEIVE_WAP_PUSH`) | 5 | Nur relevant, wenn Hub bewusst zur Standard-SMS-App gemacht wird. |
 | `USE_BIOMETRIC` | 7 | App-Lock. Geräte-PIN als Rückfallebene braucht keine eigene Berechtigung. |
 
-Bewusst **nicht** angefordert: `QUERY_ALL_PACKAGES` (der Listener liefert den Paketnamen
-ohnehin). Backup ist über `allowBackup=false` und `data_extraction_rules.xml` vollständig
-gesperrt, sonst würden die aggregierten Nachrichten das Gerät verlassen.
+`QUERY_ALL_PACKAGES` wird angefordert, damit App-Namen und -Icons der Quell-Apps aufgelöst
+werden können (seit Android 11 sind Apps sonst füreinander unsichtbar, und im Feed stünde
+nur der rohe Paketname). Die Daten werden ausschließlich lokal zur Anzeige genutzt.
+Backup ist über `allowBackup=false` und `data_extraction_rules.xml` vollständig gesperrt,
+sonst würden die aggregierten Nachrichten das Gerät verlassen.
 
 ## Was fertig ist – und was nicht
 

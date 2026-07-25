@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Ab Android 13 nötig, damit Hub eigene Hinweise (z. B. Fehler eines Connectors)
          anzeigen darf. Nicht für das Mitlesen fremder Notifications - das regelt
@@ -24,9 +25,15 @@
     <uses-permission android:name="android.permission.RECEIVE_WAP_PUSH" />
     <uses-feature android:name="android.hardware.telephony" android:required="false" />
 
-    <!-- QUERY_ALL_PACKAGES waere fuer App-Namen/Icons bequem, wird hier aber bewusst
-         NICHT angefordert: Der NotificationListenerService liefert den Paketnamen der
-         Quell-App ohnehin, und der Zugriff auf deren Label/Icon ist darueber erlaubt. -->
+    <!-- Seit Android 11 sind installierte Apps standardmaessig fuereinander unsichtbar
+         (Package Visibility). Ohne diese Berechtigung schlaegt das Aufloesen von
+         App-Name und -Icon zur Quell-App fehl, und im Hub steht nur der rohe
+         Paketname (z.B. com.google.android.apps.photos statt "Google Fotos").
+         Fuer einen Nachrichten-Hub, der ohnehin alle Benachrichtigungen buendelt, ist
+         das gerechtfertigt; die Namen/Icons werden ausschliesslich lokal zur Anzeige
+         genutzt und verlassen das Geraet nicht. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission" />
 
     <!-- Phase 7: App-Lock. USE_BIOMETRIC deckt Fingerabdruck/Gesicht ab; die Geraete-PIN
          als Rueckfallebene braucht keine eigene Berechtigung. -->

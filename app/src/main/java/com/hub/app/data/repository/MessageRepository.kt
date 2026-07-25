@@ -68,10 +68,16 @@ class MessageRepository(
     suspend fun getById(id: String): MessageEntity? = messageDao.getById(id)
 
     suspend fun registerSource(sourceApp: SourceAppEntity) {
-        // Existierende Werte (enabled/isPriority) nicht überschreiben, falls die Quelle
-        // bereits vom Nutzer konfiguriert wurde.
         val existing = sourceAppDao.getBySourceKey(sourceApp.sourceKey)
-        sourceAppDao.upsert(existing ?: sourceApp)
+        when {
+            existing == null -> sourceAppDao.upsert(sourceApp)
+            // Label nachträglich verbessern: Wurde die Quelle früher nur mit dem Paketnamen
+            // erfasst (App-Name damals nicht auflösbar) und liegt jetzt ein echter Name vor,
+            // aktualisieren - Nutzer-Einstellungen (enabled/isPriority) bleiben erhalten.
+            existing.label != sourceApp.label && sourceApp.label != sourceApp.packageName ->
+                sourceAppDao.upsert(existing.copy(label = sourceApp.label))
+            // Sonst bestehende, vom Nutzer konfigurierte Quelle unverändert lassen.
+        }
     }
 
     suspend fun setSourceEnabled(sourceKey: String, enabled: Boolean) = sourceAppDao.setEnabled(sourceKey, enabled)
