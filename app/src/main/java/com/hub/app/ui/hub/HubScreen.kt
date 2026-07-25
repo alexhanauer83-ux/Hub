@@ -8,9 +8,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -18,12 +22,15 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hub.app.data.local.entity.MessageEntity
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,13 +41,33 @@ fun HubScreen(
     viewModel: HubViewModel = viewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var peekMessage by remember { mutableStateOf<MessageEntity?>(null) }
 
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Hub") },
+                title = { Text(if (state.tab == HubTab.PRIORITAET) "Priority Hub" else "Hub") },
+                actions = {
+                    // Direktzugriff auf den Priority Hub, so wie beim Original ein
+                    // Fingertipp genügte statt sich durch Menüs zu hangeln.
+                    IconButton(onClick = {
+                        viewModel.selectTab(
+                            if (state.tab == HubTab.PRIORITAET) HubTab.ALLE else HubTab.PRIORITAET
+                        )
+                    }) {
+                        Icon(
+                            Icons.Default.Star,
+                            contentDescription = "Priority Hub",
+                            tint = if (state.tab == HubTab.PRIORITAET) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = MaterialTheme.colorScheme.onBackground
@@ -52,8 +79,50 @@ fun HubScreen(
             if (!state.hasNotificationAccess) {
                 AccessBanner(onOpenOnboarding)
             }
-            MessageList(messages = state.messages)
+
+            HubFilterBar(
+                selectedTab = state.tab,
+                onSelectTab = viewModel::selectTab,
+                sources = state.sources,
+                selectedSourceKey = state.sourceFilter,
+                onSelectSource = viewModel::selectSourceFilter
+            )
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
+            MessageList(
+                messages = state.messages,
+                isArchiveView = state.tab == HubTab.ARCHIV,
+                emptyHint = emptyHintFor(state.tab),
+                onMarkRead = viewModel::markRead,
+                onArchive = viewModel::archive,
+                onUnarchive = viewModel::unarchive,
+                onOpenPeek = { peekMessage = it }
+            )
         }
+    }
+
+    peekMessage?.let { message ->
+        MessagePeekSheet(
+            message = message,
+            onDismiss = { peekMessage = null },
+            onMarkRead = {
+                viewModel.markRead(message.id)
+                peekMessage = null
+            },
+            onArchive = {
+                viewModel.archive(message.id)
+                peekMessage = null
+            },
+            onTogglePriority = {
+                viewModel.setPriority(message.id, !message.priority)
+                peekMessage = null
+            },
+            onAlwaysPrioritizeSender = {
+                viewModel.addPriorityContact(message)
+                peekMessage = null
+            }
+        )
     }
 }
 
@@ -76,14 +145,23 @@ private fun AccessBanner(onOpenOnboarding: () -> Unit) {
 }
 
 @Composable
-private fun MessageList(messages: List<MessageEntity>) {
+private fun MessageList(
+    messages: List<MessageEntity>,
+    isArchiveView: Boolean,
+    emptyHint: String,
+    onMarkRead: (String) -> Unit,
+    onArchive: (String) -> Unit,
+    onUnarchive: (String) -> Unit,
+    onOpenPeek: (MessageEntity) -> Unit
+) {
     if (messages.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(
-                text = "Keine Nachrichten",
+                text = emptyHint,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(32.dp)
             )
         }
         return
@@ -91,8 +169,25 @@ private fun MessageList(messages: List<MessageEntity>) {
 
     LazyColumn(Modifier.fillMaxSize()) {
         items(messages, key = { it.id }) { message ->
-            MessageRow(message = message)
+            SwipeableMessageRow(
+                message = message,
+                isArchiveView = isArchiveView,
+                onMarkRead = { onMarkRead(message.id) },
+                onArchive = { onArchive(message.id) },
+                onUnarchive = { onUnarchive(message.id) },
+                // Antippen markiert als gelesen; den vollen Text gibt es per Long-Press,
+                // ohne die Quell-App zu oeffnen.
+                onClick = { onMarkRead(message.id) },
+                onLongPress = { onOpenPeek(message) }
+            )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         }
     }
+}
+
+private fun emptyHintFor(tab: HubTab): String = when (tab) {
+    HubTab.ALLE -> "Keine Nachrichten"
+    HubTab.UNGELESEN -> "Alles gelesen"
+    HubTab.PRIORITAET -> "Noch nichts priorisiert.\nHalte eine Nachricht gedrückt, um sie als wichtig zu markieren."
+    HubTab.ARCHIV -> "Archiv ist leer"
 }

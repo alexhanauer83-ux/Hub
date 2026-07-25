@@ -77,6 +77,18 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
         _hasNotificationAccess.value = NotificationAccess.isGranted(getApplication())
     }
 
+    /**
+     * Priorisiert dauerhaft alle künftigen Nachrichten dieses Absenders in dieser Quelle
+     * (Priority Hub), nicht nur die angetippte Nachricht.
+     */
+    fun addPriorityContact(message: MessageEntity) = viewModelScope.launch {
+        repository.addPriorityContact(message.sourceKey, message.sender)
+        repository.setPriority(message.id, true)
+    }
+
+    fun setSourcePriority(sourceKey: String, isPriority: Boolean) =
+        viewModelScope.launch { repository.setSourcePriority(sourceKey, isPriority) }
+
     fun markRead(id: String) = viewModelScope.launch { repository.markRead(id) }
     fun archive(id: String) = viewModelScope.launch { repository.archive(id) }
     fun unarchive(id: String) = viewModelScope.launch { repository.unarchive(id) }

@@ -1,6 +1,8 @@
 package com.hub.app.ui.hub
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,15 +36,26 @@ import java.util.Locale
  * Eine Feed-Zeile. Bewusst reduziert: farbiger Quellen-Punkt statt App-Icon-Zoo,
  * ungelesen wird über Schriftstärke + Akzentbalken kodiert, nicht über Badges.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageRow(
     message: MessageEntity,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    onLongPress: (() -> Unit)? = null
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
+            .then(
+                if (onClick != null || onLongPress != null) {
+                    Modifier.combinedClickable(
+                        onClick = { onClick?.invoke() },
+                        onLongClick = onLongPress
+                    )
+                } else Modifier
+            )
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.Top
     ) {
