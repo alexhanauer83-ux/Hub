@@ -22,8 +22,11 @@ import com.hub.app.data.source.IncomingMessage
  */
 object HubNotifier {
 
-    private const val CHANNEL_ID = "hub_replacement"
+    // v2, weil die Wichtigkeit eines bestehenden Channels nicht per Code aenderbar ist:
+    // Der alte, lautlose Channel wird geloescht und dieser mit Ton neu angelegt.
+    private const val CHANNEL_ID = "hub_messages_v2"
     private const val CHANNEL_NAME = "Hub-Nachrichten"
+    private const val OLD_CHANNEL_ID = "hub_replacement"
 
     fun post(context: Context, message: IncomingMessage) {
         ensureChannel(context)
@@ -48,8 +51,9 @@ object HubNotifier {
             .setSubText(message.sourceLabel)
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
-            .setOnlyAlertOnce(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            // Ton + Vibration, damit Hub wie eine normale Benachrichtigung alarmiert.
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .build()
 
         // Eine Notification pro Nachricht (stabile ID -> Updates statt Duplikate).
@@ -58,14 +62,17 @@ object HubNotifier {
 
     private fun ensureChannel(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        // Alten, lautlosen Channel aufräumen (Importance ist nachträglich nicht änderbar).
+        runCatching { manager.deleteNotificationChannel(OLD_CHANNEL_ID) }
         if (manager.getNotificationChannel(CHANNEL_ID) != null) return
         val channel = NotificationChannel(
             CHANNEL_ID,
             CHANNEL_NAME,
-            // LOW = erscheint in der Leiste, macht aber keinen Ton (Original hat schon getönt).
-            NotificationManager.IMPORTANCE_LOW
+            // HIGH = Ton, Vibration und Heads-up wie eine normale Nachricht.
+            NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = "Von Hub gebündelte Benachrichtigungen anderer Apps"
+            enableVibration(true)
         }
         manager.createNotificationChannel(channel)
     }
