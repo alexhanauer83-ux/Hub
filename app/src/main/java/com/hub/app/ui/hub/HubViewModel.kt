@@ -20,13 +20,19 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** Aktive Feed-Ansicht. Filter nach Quelle wird separat über [HubViewModel.sourceFilter] gesetzt. */
-enum class HubTab { ALLE, UNGELESEN, PRIORITAET, ARCHIV }
+/**
+ * Aktive Feed-Ansicht. POSTEINGANG zeigt nur ungelesene, nicht archivierte Nachrichten
+ * (gelesene verschwinden); die Quellen-Auswahl (Drawer) läuft separat über
+ * [HubViewModel.sourceFilter] und zeigt dann alle Nachrichten der gewählten App.
+ */
+enum class HubTab { POSTEINGANG, PRIORITAET, ARCHIV }
 
 data class HubUiState(
     val messages: List<MessageEntity> = emptyList(),
     val sources: List<SourceAppEntity> = emptyList(),
-    val tab: HubTab = HubTab.ALLE,
+    /** sourceKey -> Anzahl aktiver Nachrichten, für die Badges im Drawer. */
+    val sourceCounts: Map<String, Int> = emptyMap(),
+    val tab: HubTab = HubTab.POSTEINGANG,
     val sourceFilter: String? = null,
     val hasNotificationAccess: Boolean = false
 )
@@ -37,7 +43,7 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
 
     private val notificationSource = NotificationMessageSource(application)
 
-    private val _tab = MutableStateFlow(HubTab.ALLE)
+    private val _tab = MutableStateFlow(HubTab.POSTEINGANG)
     val tab: StateFlow<HubTab> = _tab.asStateFlow()
 
     private val _quickReplyState = MutableStateFlow<QuickReplyState>(QuickReplyState.Idle)
@@ -50,25 +56,28 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
     private val messages = combine(_tab, _sourceFilter) { tab, source -> tab to source }
         .flatMapLatest { (tab, source) ->
             when {
-                // Ein aktiver Quellenfilter gewinnt gegenüber dem Tab, außer im Archiv.
-                source != null && tab != HubTab.ARCHIV -> repository.observeBySource(source)
-                tab == HubTab.UNGELESEN -> repository.observeUnread()
+                // Ein aktiver Quellenfilter (Drawer-Auswahl) gewinnt immer gegenüber dem Tab
+                // und zeigt ALLE Nachrichten der App.
+                source != null -> repository.observeBySource(source)
                 tab == HubTab.PRIORITAET -> repository.observePriorityHub()
                 tab == HubTab.ARCHIV -> repository.observeArchived()
                 else -> repository.observeInbox()
             }
         }
 
+    private val sourceCounts = repository.observeSourceCounts()
+
     val uiState: StateFlow<HubUiState> = combine(
         messages,
         repository.observeSources(),
+        sourceCounts,
         _tab,
-        _sourceFilter,
-        _hasNotificationAccess
-    ) { messages, sources, tab, sourceFilter, access ->
+        combine(_sourceFilter, _hasNotificationAccess) { filter, access -> filter to access }
+    ) { messages, sources, counts, tab, (sourceFilter, access) ->
         HubUiState(
             messages = messages,
             sources = sources,
+            sourceCounts = counts.associate { it.sourceKey to it.count },
             tab = tab,
             sourceFilter = sourceFilter,
             hasNotificationAccess = access

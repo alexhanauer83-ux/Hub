@@ -16,7 +16,6 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
@@ -45,29 +44,26 @@ fun SwipeableMessageRow(
     val currentOnArchive by rememberUpdatedState(onArchive)
     val currentOnUnarchive by rememberUpdatedState(onUnarchive)
 
+    // Aktion direkt in confirmValueChange auslösen und IMMER false zurückgeben: Die Aktion
+    // ändert den DB-Zustand, woraufhin der Flow den Eintrag aus der Liste entfernt
+    // (gelesen -> aus dem Posteingang ausgeblendet, archiviert -> ins Archiv). Die Box
+    // verharrt so nie in einem "dismissed"-Zustand.
+    //
+    // Der frühere Ansatz (LaunchedEffect auf state.currentValue + state.reset()) hat beim
+    // Archivieren versagt: Sobald die Aktion die Zeile aus der Liste entfernte, wurde die
+    // Composable samt LaunchedEffect verworfen und reset()/die Aktion mittendrin abgebrochen
+    // - deshalb "wischen ins Archiv ging nicht", Peek-Archivieren aber schon.
     val state = rememberSwipeToDismissBoxState(
-        // Die Aktion wird nicht in confirmValueChange ausgelöst, weil dieser Callback
-        // auch beim blossen Vorbeiziehen feuern kann. Stattdessen unten per LaunchedEffect
-        // auf den tatsächlich erreichten Endzustand reagieren.
-        positionalThreshold = { distance -> distance * 0.35f }
-    )
-
-    LaunchedEffect(state.currentValue, message.id) {
-        when (state.currentValue) {
-            SwipeToDismissBoxValue.StartToEnd -> {
-                currentOnMarkRead()
-                // Zeile bleibt sichtbar (nur "gelesen"), daher zurücksetzen.
-                state.reset()
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> currentOnMarkRead()
+                SwipeToDismissBoxValue.EndToStart ->
+                    if (isArchiveView) currentOnUnarchive() else currentOnArchive()
+                SwipeToDismissBoxValue.Settled -> Unit
             }
-            SwipeToDismissBoxValue.EndToStart -> {
-                if (isArchiveView) currentOnUnarchive() else currentOnArchive()
-                // Die Zeile verschwindet aus dem aktuellen Flow; zurücksetzen, damit ein
-                // recycelter Slot nicht im Dismiss-Zustand hängen bleibt.
-                state.reset()
-            }
-            SwipeToDismissBoxValue.Settled -> Unit
+            false
         }
-    }
+    )
 
     SwipeToDismissBox(
         state = state,

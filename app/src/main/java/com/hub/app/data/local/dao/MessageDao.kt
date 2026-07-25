@@ -12,7 +12,10 @@ interface MessageDao {
     @Upsert
     suspend fun upsert(message: MessageEntity)
 
-    @Query("SELECT * FROM messages WHERE isArchived = 0 ORDER BY timestamp DESC")
+    // Posteingang zeigt bewusst nur ungelesene, nicht archivierte Nachrichten - gelesene
+    // verschwinden aus der Uebersicht (Triage-Modell). Der vollstaendige Verlauf einer
+    // App ist weiterhin ueber observeBySource (Drawer-Auswahl) erreichbar.
+    @Query("SELECT * FROM messages WHERE isArchived = 0 AND isRead = 0 ORDER BY timestamp DESC")
     fun observeInbox(): Flow<List<MessageEntity>>
 
     @Query("SELECT * FROM messages WHERE isArchived = 1 ORDER BY timestamp DESC")
@@ -21,8 +24,14 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE isArchived = 0 AND isRead = 0 ORDER BY timestamp DESC")
     fun observeUnread(): Flow<List<MessageEntity>>
 
+    // Bei Auswahl einer Quelle im Drawer: ALLE Nachrichten dieser App (gelesen + ungelesen),
+    // nur Archiviertes bleibt aussen vor.
     @Query("SELECT * FROM messages WHERE isArchived = 0 AND sourceKey = :sourceKey ORDER BY timestamp DESC")
     fun observeBySource(sourceKey: String): Flow<List<MessageEntity>>
+
+    /** Anzahl aktiver (ungelesener, nicht archivierter) Nachrichten je Quelle - fuer die Badges im Drawer. */
+    @Query("SELECT sourceKey AS sourceKey, COUNT(*) AS count FROM messages WHERE isArchived = 0 AND isRead = 0 GROUP BY sourceKey")
+    fun observeSourceCounts(): Flow<List<SourceCount>>
 
     /**
      * Priority Hub: Nachrichten, die entweder manuell priorisiert wurden, deren Quelle
