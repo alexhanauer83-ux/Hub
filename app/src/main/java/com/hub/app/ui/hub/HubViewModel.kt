@@ -195,6 +195,19 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
     fun markRead(id: String) = viewModelScope.launch { repository.markRead(id) }
     fun archive(id: String) = viewModelScope.launch { repository.archive(id) }
     fun delete(id: String) = viewModelScope.launch { repository.delete(id) }
+
+    private val soundSettings by lazy {
+        com.hub.app.notification.SoundSettings(getApplication())
+    }
+
+    /** Aktuell für diesen Absender hinterlegter Ton (URI-String) oder null. */
+    fun currentSenderSound(message: MessageEntity): String? =
+        soundSettings.soundFor(message.sourceKey, message.sender)
+
+    /** Setzt (oder entfernt bei null) einen eigenen Ton für diesen Absender. */
+    fun setSenderSound(message: MessageEntity, soundUri: String?) {
+        soundSettings.setSenderSound(message.sourceKey, message.sender, soundUri)
+    }
     fun unarchive(id: String) = viewModelScope.launch { repository.unarchive(id) }
     fun setPriority(id: String, priority: Boolean) = viewModelScope.launch { repository.setPriority(id, priority) }
 }

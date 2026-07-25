@@ -53,6 +53,7 @@ fun MessagePeekSheet(
     onAlwaysPrioritizeSender: () -> Unit,
     onOpenApp: () -> Unit,
     onDelete: () -> Unit,
+    onChooseSound: () -> Unit,
     canQuickReply: Boolean,
     quickReplyState: QuickReplyState,
     onSendQuickReply: (String) -> Unit
@@ -136,6 +137,9 @@ fun MessagePeekSheet(
 
             TextButton(onClick = onAlwaysPrioritizeSender) {
                 Text("„${message.sender}“ immer priorisieren")
+            }
+            TextButton(onClick = onChooseSound) {
+                Text("Ton für „${message.sender}“ wählen")
             }
 
             if (canQuickReply) {

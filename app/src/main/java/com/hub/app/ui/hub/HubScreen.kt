@@ -1,5 +1,9 @@
 package com.hub.app.ui.hub
 
+import android.content.Intent
+import android.media.RingtoneManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +58,21 @@ fun HubScreen(
     val quickReplyState by viewModel.quickReplyState.collectAsStateWithLifecycle()
     var peekMessage by remember { mutableStateOf<MessageEntity?>(null) }
     var replyMessage by remember { mutableStateOf<MessageEntity?>(null) }
+
+    // Merkt sich, für welche Nachricht gerade ein Ton gewählt wird (Ergebnis kommt async).
+    var soundPickMessage by remember { mutableStateOf<MessageEntity?>(null) }
+    val ringtonePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri: android.net.Uri? = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, android.net.Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+        }
+        soundPickMessage?.let { viewModel.setSenderSound(it, uri?.toString()) }
+        soundPickMessage = null
+    }
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -202,6 +221,11 @@ fun HubScreen(
             onDelete = {
                 viewModel.delete(message.id)
                 closePeek()
+            },
+            onChooseSound = {
+                soundPickMessage = message
+                ringtonePicker.launch(buildRingtonePickerIntent(viewModel.currentSenderSound(message)))
+                closePeek()
             }
         )
     }
@@ -283,6 +307,19 @@ private fun MessageList(
         }
     }
 }
+
+/** Baut den System-Dialog zur Ton-Auswahl (Benachrichtigungstöne), mit aktueller Vorauswahl. */
+private fun buildRingtonePickerIntent(currentUri: String?): Intent =
+    Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+        putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
+        putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Ton wählen")
+        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true)
+        putExtra(
+            RingtoneManager.EXTRA_RINGTONE_EXISTING_URI,
+            currentUri?.let { android.net.Uri.parse(it) }
+        )
+    }
 
 private fun emptyHintFor(tab: HubTab): String = when (tab) {
     HubTab.POSTEINGANG -> "Keine ungelesenen Nachrichten"

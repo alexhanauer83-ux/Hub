@@ -29,9 +29,13 @@ object HubNotifier {
     private const val OLD_CHANNEL_ID = "hub_replacement"
 
     fun post(context: Context, message: IncomingMessage) {
-        ensureChannel(context)
         val manager = NotificationManagerCompat.from(context)
         if (!manager.areNotificationsEnabled()) return // ohne POST_NOTIFICATIONS zwecklos
+
+        // Absenderspezifischer Ton? Dann eigenen Channel für diesen Ton verwenden
+        // (unter Android ist der Ton an den Channel gebunden, nicht an die Notification).
+        val customSound = SoundSettings(context).soundFor(message.sourceKey, message.sender)
+        val channelId = ensureChannel(context, customSound)
 
         val openIntent = Intent(context, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -43,7 +47,7 @@ object HubNotifier {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_stat_hub)
             .setContentTitle(message.sender.ifBlank { message.sourceLabel })
             .setContentText(message.content)
@@ -60,20 +64,36 @@ object HubNotifier {
         runCatching { manager.notify(message.stableId.hashCode(), notification) }
     }
 
-    private fun ensureChannel(context: Context) {
-        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+    /**
+     * Stellt den passenden Channel sicher und liefert dessen ID. Ohne eigenen Ton der
+     * Standard-Channel; mit eigenem Ton ein pro Ton eindeutiger Channel (die ID leitet sich
+     * aus der Ton-URI ab, damit gleiche Töne denselben Channel teilen).
+     */
+    private fun ensureChannel(context: Context, soundUri: String?): String {
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return CHANNEL_ID
         // Alten, lautlosen Channel aufräumen (Importance ist nachträglich nicht änderbar).
         runCatching { manager.deleteNotificationChannel(OLD_CHANNEL_ID) }
-        if (manager.getNotificationChannel(CHANNEL_ID) != null) return
+
+        val channelId = if (soundUri.isNullOrBlank()) CHANNEL_ID else "hub_sound_${soundUri.hashCode()}"
+        if (manager.getNotificationChannel(channelId) != null) return channelId
+
         val channel = NotificationChannel(
-            CHANNEL_ID,
-            CHANNEL_NAME,
+            channelId,
+            if (soundUri.isNullOrBlank()) CHANNEL_NAME else "$CHANNEL_NAME (eigener Ton)",
             // HIGH = Ton, Vibration und Heads-up wie eine normale Nachricht.
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = "Von Hub gebündelte Benachrichtigungen anderer Apps"
             enableVibration(true)
+            if (!soundUri.isNullOrBlank()) {
+                val attrs = android.media.AudioAttributes.Builder()
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                    .build()
+                runCatching { setSound(android.net.Uri.parse(soundUri), attrs) }
+            }
         }
         manager.createNotificationChannel(channel)
+        return channelId
     }
 }

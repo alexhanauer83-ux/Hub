@@ -60,9 +60,16 @@ class HubNotificationListenerService : NotificationListenerService() {
         handleNotification(sbn)
     }
 
-    override fun onNotificationRemoved(sbn: StatusBarNotification) {
-        // Die Nachricht bleibt im Hub erhalten (das ist der Sinn eines Hubs), aber die
-        // PendingIntents (Quick Reply, contentIntent) sind ab jetzt ungültig.
+    override fun onNotificationRemoved(
+        sbn: StatusBarNotification,
+        rankingMap: NotificationListenerService.RankingMap?,
+        reason: Int
+    ) {
+        // Wenn HUB die Notification selbst entfernt hat (Ersetzen-Modus), die Antwort-/
+        // Öffnen-Aktionen NICHT verwerfen - deren PendingIntents bleiben i. d. R. gültig,
+        // sodass Quick Reply (z. B. WhatsApp) weiter funktioniert. Nur bei echtem Entfernen
+        // durch Nutzer/App aufräumen.
+        if (reason == REASON_LISTENER_CANCEL) return
         QuickReplyRegistry.removeByNotificationKey(sbn.key)
         ContentIntentRegistry.removeByNotificationKey(sbn.key)
     }
