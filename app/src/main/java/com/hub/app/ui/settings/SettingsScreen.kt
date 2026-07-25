@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.Button
@@ -179,8 +181,10 @@ fun SettingsScreen(
             items(state.sources, key = { it.sourceKey }) { source ->
                 SourceRow(
                     source = source,
+                    muted = source.sourceKey in state.mutedSources,
                     onToggleEnabled = { viewModel.setSourceEnabled(source.sourceKey, it) },
-                    onTogglePriority = { viewModel.setSourcePriority(source.sourceKey, !source.isPriority) }
+                    onTogglePriority = { viewModel.setSourcePriority(source.sourceKey, !source.isPriority) },
+                    onToggleMuted = { viewModel.setSourceMuted(source.sourceKey, it) }
                 )
             }
 
@@ -378,8 +382,10 @@ private fun SmsSection(
 @Composable
 private fun SourceRow(
     source: SourceAppEntity,
+    muted: Boolean,
     onToggleEnabled: (Boolean) -> Unit,
-    onTogglePriority: () -> Unit
+    onTogglePriority: () -> Unit,
+    onToggleMuted: (Boolean) -> Unit
 ) {
     Row(
         Modifier
@@ -393,6 +399,14 @@ private fun SourceRow(
                 if (source.isNativeConnector) "Direkte API-Anbindung" else "Über Benachrichtigungen",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        // Stummschalten: keine Hub-Benachrichtigung/kein Ton für diese Quelle.
+        IconButton(onClick = { onToggleMuted(!muted) }) {
+            Icon(
+                imageVector = if (muted) Icons.Default.NotificationsOff else Icons.Default.Notifications,
+                contentDescription = if (muted) "Stumm (tippen zum Aktivieren)" else "Stummschalten",
+                tint = if (muted) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         IconButton(onClick = onTogglePriority) {

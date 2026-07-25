@@ -31,6 +31,9 @@ object HubNotifier {
     private const val OLD_CHANNEL_ID = "hub_replacement"
 
     fun post(context: Context, message: IncomingMessage) {
+        // Stummgeschaltete Quelle: keine Hub-Benachrichtigung (Nachricht bleibt im Feed).
+        if (NotificationSettings(context).isMuted(message.sourceKey)) return
+
         val manager = NotificationManagerCompat.from(context)
         if (!manager.areNotificationsEnabled()) return // ohne POST_NOTIFICATIONS zwecklos
 

@@ -36,7 +36,8 @@ data class SettingsUiState(
     val hasSmsReadPermission: Boolean = false,
     val isAppLockEnabled: Boolean = false,
     val canUseAppLock: Boolean = false,
-    val replaceOtherNotifications: Boolean = false
+    val replaceOtherNotifications: Boolean = false,
+    val mutedSources: Set<String> = emptySet()
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -94,8 +95,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         hasSmsReadPermission = smsSource.hasReadPermission(),
         isAppLockEnabled = appLock.isLockEnabled,
         canUseAppLock = appLock.canAuthenticate(),
-        replaceOtherNotifications = notificationSettings.replaceOtherNotifications
+        replaceOtherNotifications = notificationSettings.replaceOtherNotifications,
+        mutedSources = notificationSettings.mutedSources()
     )
+
+    fun setSourceMuted(sourceKey: String, muted: Boolean) {
+        notificationSettings.setMuted(sourceKey, muted)
+        refreshSystemState()
+    }
 
     fun setAppLockEnabled(enabled: Boolean) {
         appLock.isLockEnabled = enabled
