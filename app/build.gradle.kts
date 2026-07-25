@@ -47,7 +47,15 @@ android {
 
     packaging {
         resources {
+            // Mehrere Abhaengigkeiten (u.a. die beiden JavaMail-Artefakte fuer IMAP)
+            // liefern gleichnamige Lizenz-/Hinweis-Dateien unter META-INF. Diese sind
+            // fuer die Laufzeit irrelevant und wuerden sonst beim Mergen kollidieren.
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "/META-INF/NOTICE.md"
+            excludes += "/META-INF/LICENSE.md"
+            excludes += "/META-INF/NOTICE"
+            excludes += "/META-INF/LICENSE"
+            excludes += "/META-INF/DEPENDENCIES"
         }
     }
 }
