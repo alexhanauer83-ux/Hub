@@ -231,10 +231,23 @@ class MatrixConnector(
         // Eigene ausgehende Nachrichten nicht als Eingang spiegeln.
         if (sender != null && sender == selfId) return null
 
-        val content: String
+        var content: String
+        var audioUri: String? = null
+        var imageUri: String? = null
         when (type) {
             "m.room.message" -> {
-                content = this.content?.body ?: return null
+                when (this.content?.msgtype) {
+                    // Sprachnachricht/Audio: mxc:// in eine abspielbare Download-URL wandeln.
+                    "m.audio" -> {
+                        audioUri = resolveMxc(this.content.url)
+                        content = this.content.body ?: "Sprachnachricht"
+                    }
+                    "m.image" -> {
+                        imageUri = resolveMxc(this.content.url)
+                        content = this.content.body ?: "Bild"
+                    }
+                    else -> content = this.content?.body ?: return null
+                }
             }
             "m.room.encrypted" -> {
                 // E2EE kann diese Anbindung nicht entschlüsseln (siehe MatrixApi-KDoc).
@@ -254,8 +267,24 @@ class MatrixConnector(
             timestamp = timestamp ?: System.currentTimeMillis(),
             category = MessageCategory.MESSAGING,
             isContentRedacted = type == "m.room.encrypted",
-            hasQuickReply = true
+            hasQuickReply = true,
+            audioUri = audioUri,
+            imageUri = imageUri
         )
+    }
+
+    /**
+     * Wandelt eine mxc://-URI in eine abspielbare/ladbare HTTPS-Download-URL. Der
+     * Access-Token wird als Query-Parameter angehängt (Legacy-Media-Endpunkt) – so können
+     * MediaPlayer/Coil ohne zusätzliche Auth-Header darauf zugreifen. Auf Servern mit
+     * ausschließlich authentifizierten Medien (Matrix 1.11+) kann das fehlschlagen.
+     */
+    private fun resolveMxc(mxc: String?): String? {
+        if (mxc == null || !mxc.startsWith("mxc://")) return null
+        val path = mxc.removePrefix("mxc://") // <server>/<mediaId>
+        val base = credentials.homeserver ?: return null
+        val token = credentials.accessToken ?: return null
+        return "$base/_matrix/media/v3/download/$path?access_token=$token"
     }
 
     private fun storeFromRegister(base: String, body: RegisterResponse?): String {
