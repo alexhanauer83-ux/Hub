@@ -95,12 +95,6 @@
                 android:resource="@xml/hub_widget_info" />
         </receiver>
 
-        <!-- Liefert die scrollbare Liste im Widget. BIND_REMOTEVIEWS: nur das System darf binden. -->
-        <service
-            android:name=".widget.HubWidgetService"
-            android:exported="false"
-            android:permission="android.permission.BIND_REMOTEVIEWS" />
-
         <!-- Hintergrund-Empfang der API-Connectoren. -->
         <service
             android:name=".connectors.ConnectorSyncService"

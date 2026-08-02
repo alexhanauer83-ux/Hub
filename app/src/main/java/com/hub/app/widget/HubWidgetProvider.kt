@@ -29,44 +29,67 @@ class HubWidgetProvider : AppWidgetProvider() {
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                val unread = runCatching { ServiceLocator.messageRepository(appContext).unreadCount() }.getOrDefault(0)
-                ids.forEach { id ->
-                    manager.updateAppWidget(id, buildViews(appContext, id, unread))
-                    // Liste neu laden lassen (RemoteViewsFactory.onDataSetChanged).
-                    manager.notifyAppWidgetViewDataChanged(id, R.id.widget_list)
-                }
+                val repo = ServiceLocator.messageRepository(appContext)
+                val messages = runCatching { repo.inboxSnapshot(ROW_LIMIT * 3) }.getOrDefault(emptyList())
+                val unread = runCatching { repo.unreadCount() }.getOrDefault(0)
+                // Pro Unterhaltung die neueste Nachricht (wie in der gruppierten Uebersicht).
+                val rows = messages
+                    .groupBy { it.sourceKey to (it.conversationId?.takeIf { c -> c.isNotBlank() } ?: it.sender) }
+                    .map { (_, msgs) -> msgs.first() }
+                    .sortedByDescending { it.timestamp }
+                    .take(ROW_LIMIT)
+
+                val views = buildViews(appContext, unread, rows)
+                ids.forEach { id -> manager.updateAppWidget(id, views) }
             } finally {
                 pending.finish()
             }
         }
     }
 
-    private fun buildViews(context: Context, widgetId: Int, unread: Int): RemoteViews {
-        val views = RemoteViews(context.packageName, R.layout.widget_hub_list)
+    private fun buildViews(
+        context: Context,
+        unread: Int,
+        rows: List<com.hub.app.data.local.entity.MessageEntity>
+    ): RemoteViews {
+        val views = RemoteViews(context.packageName, R.layout.widget_hub_simple)
         views.setTextViewText(R.id.widget_count, if (unread > 0) "$unread neu" else "")
 
-        // Scrollbare Liste an den RemoteViewsService binden.
-        val serviceIntent = Intent(context, HubWidgetService::class.java).apply {
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
-            // Eindeutige data-URI je Widget, sonst cachet das System den Adapter.
-            data = android.net.Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
-        }
-        views.setRemoteAdapter(R.id.widget_list, serviceIntent)
-        views.setEmptyView(R.id.widget_list, R.id.widget_empty)
+        views.removeAllViews(R.id.widget_container)
+        views.setViewVisibility(R.id.widget_empty, if (rows.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE)
 
-        // Template: Tippen auf einen Eintrag öffnet Hub.
+        for (message in rows) {
+            val item = RemoteViews(context.packageName, R.layout.widget_item)
+            val title = (message.conversationId?.takeIf { it.isNotBlank() } ?: message.sender)
+            item.setTextViewText(R.id.item_title, title)
+            item.setTextViewText(R.id.item_text, message.subject ?: message.content)
+            item.setTextViewText(R.id.item_time, formatTime(message.timestamp))
+            views.addView(R.id.widget_container, item)
+        }
+
+        // Tippen aufs Widget oeffnet Hub.
         val openIntent = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        val template = PendingIntent.getActivity(
+        val pi = PendingIntent.getActivity(
             context, 0, openIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        views.setPendingIntentTemplate(R.id.widget_list, template)
-
+        views.setOnClickPendingIntent(R.id.widget_root, pi)
         return views
     }
 
+    private fun formatTime(timestamp: Long): String {
+        val now = java.util.Calendar.getInstance()
+        val then = java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
+        val sameDay = now.get(java.util.Calendar.YEAR) == then.get(java.util.Calendar.YEAR) &&
+            now.get(java.util.Calendar.DAY_OF_YEAR) == then.get(java.util.Calendar.DAY_OF_YEAR)
+        val pattern = if (sameDay) "HH:mm" else "dd.MM."
+        return java.text.SimpleDateFormat(pattern, java.util.Locale.GERMANY).format(java.util.Date(timestamp))
+    }
+
     companion object {
+        private const val ROW_LIMIT = 8
+
         /** Fordert eine sofortige Aktualisierung aller Hub-Widgets an (z. B. nach neuem Ingest). */
         fun requestUpdate(context: Context) {
             val manager = AppWidgetManager.getInstance(context)
