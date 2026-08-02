@@ -28,7 +28,9 @@ fun ReplySheet(
     canReply: Boolean,
     state: QuickReplyState,
     onSend: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    canSendVoice: Boolean = false,
+    onSendVoice: (java.io.File) -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -57,7 +59,16 @@ fun ReplySheet(
             )
             Spacer(Modifier.height(16.dp))
             if (canReply) {
-                QuickReplyBar(state = state, onSend = onSend)
+                androidx.compose.foundation.layout.Row(
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    androidx.compose.foundation.layout.Box(Modifier.weight(1f)) {
+                        QuickReplyBar(state = state, onSend = onSend)
+                    }
+                    if (canSendVoice) {
+                        VoiceRecordButton(onRecorded = onSendVoice)
+                    }
+                }
             } else {
                 Text(
                     "Antworten ist für diese Nachricht nicht möglich. Doppeltippen öffnet die App.",

@@ -331,7 +331,9 @@ fun HubScreen(
             onDismiss = {
                 replyMessage = null
                 viewModel.resetQuickReplyState()
-            }
+            },
+            canSendVoice = remember(message.id) { viewModel.canSendVoice(message) },
+            onSendVoice = { file -> viewModel.sendVoice(message, file) }
         )
     }
 }

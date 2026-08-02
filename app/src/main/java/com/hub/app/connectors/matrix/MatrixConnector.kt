@@ -143,6 +143,25 @@ class MatrixConnector(
     suspend fun sendToRoom(roomId: String, text: String): Result<Unit> =
         sendReply(ReplyTarget(messageId = "", conversationId = roomId), text)
 
+    /** Lädt eine aufgenommene Audiodatei hoch und sendet sie als m.audio in den Raum. */
+    suspend fun sendVoice(roomId: String, file: java.io.File): Result<Unit> = runCatching {
+        val (base, token) = requireSession()
+        val api = buildApi(base)
+        val mime = "audio/mp4"
+        val bytes = file.readBytes()
+        val requestBody = okhttp3.RequestBody.create(okhttp3.MediaType.parse(mime), bytes)
+        val upload = api.uploadMedia(bearer(token), mime, file.name, requestBody)
+        api.sendAudio(
+            bearer(token), roomId, UUID.randomUUID().toString(),
+            AudioSendRequest(
+                body = "Sprachnachricht",
+                url = upload.contentUri,
+                info = AudioInfo(mimetype = mime, size = bytes.size.toLong())
+            )
+        )
+        Unit
+    }
+
     /** Beigetretene Räume als "Kontakte/Chats" – jeweils mit Anzeigenamen (sofern gesetzt). */
     suspend fun fetchContacts(): Result<List<MatrixContact>> = runCatching {
         val (base, token) = requireSession()

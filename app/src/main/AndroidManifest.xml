@@ -28,6 +28,9 @@
          nur lokal zur Anzeige/Auswahl genutzt. -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
+    <!-- Sprachnachrichten aufnehmen (nur Matrix). Zur Laufzeit abgefragt. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- Selbst-Update: erlaubt Hub, die heruntergeladene Update-APK zu installieren.
          Android zeigt beim Installieren trotzdem einen Bestaetigungsdialog. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />

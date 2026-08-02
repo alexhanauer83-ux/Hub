@@ -54,6 +54,24 @@ interface MatrixApi {
     @GET("_matrix/client/v3/joined_rooms")
     suspend fun joinedRooms(@Header("Authorization") auth: String): JoinedRoomsResponse
 
+    /** Lädt eine Datei (z. B. Sprachnachricht) in die Media-Ablage; liefert eine mxc://-URI. */
+    @POST("_matrix/media/v3/upload")
+    suspend fun uploadMedia(
+        @Header("Authorization") auth: String,
+        @Header("Content-Type") contentType: String,
+        @Query("filename") filename: String,
+        @Body body: okhttp3.RequestBody
+    ): UploadResponse
+
+    /** Sendet eine Audio-Nachricht (m.audio) mit der zuvor hochgeladenen mxc-URL. */
+    @PUT("_matrix/client/v3/rooms/{roomId}/send/m.room.message/{txnId}")
+    suspend fun sendAudio(
+        @Header("Authorization") auth: String,
+        @Path("roomId") roomId: String,
+        @Path("txnId") txnId: String,
+        @Body body: AudioSendRequest
+    ): SendResponse
+
     /** Legt einen (Direkt-)Raum an und lädt optional Nutzer ein – Grundlage für "Neuer Chat". */
     @POST("_matrix/client/v3/createRoom")
     suspend fun createRoom(
@@ -185,6 +203,24 @@ data class SendRequest(
 
 @JsonClass(generateAdapter = true)
 data class SendResponse(@Json(name = "event_id") val eventId: String?)
+
+@JsonClass(generateAdapter = true)
+data class UploadResponse(@Json(name = "content_uri") val contentUri: String)
+
+@JsonClass(generateAdapter = true)
+data class AudioSendRequest(
+    val body: String,
+    val url: String,
+    val info: AudioInfo? = null,
+    val msgtype: String = "m.audio"
+)
+
+@JsonClass(generateAdapter = true)
+data class AudioInfo(
+    val mimetype: String? = null,
+    val size: Long? = null,
+    @Json(name = "duration") val durationMs: Int? = null
+)
 
 @JsonClass(generateAdapter = true)
 data class JoinedRoomsResponse(@Json(name = "joined_rooms") val joinedRooms: List<String> = emptyList())

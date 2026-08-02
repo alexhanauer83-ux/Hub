@@ -261,6 +261,27 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetQuickReplyState() { _quickReplyState.value = QuickReplyState.Idle }
 
+    /** Ob für diese Nachricht eine Sprachnachricht gesendet werden kann (aktuell nur Matrix). */
+    fun canSendVoice(message: MessageEntity): Boolean =
+        message.sourceKey == com.hub.app.connectors.matrix.MatrixConnector.SOURCE_KEY &&
+            message.conversationId != null
+
+    /** Nimmt eine aufgenommene Sprachnachricht und sendet sie in den Matrix-Raum. */
+    fun sendVoice(message: MessageEntity, file: java.io.File) = viewModelScope.launch {
+        _quickReplyState.value = QuickReplyState.Sending
+        val roomId = message.conversationId ?: ""
+        val result = ServiceLocator.matrixConnector(getApplication()).sendVoice(roomId, file)
+        _quickReplyState.value = result.fold(
+            onSuccess = {
+                repository.markRead(message.id)
+                repository.recordOutgoing(message, "🎤 Sprachnachricht")
+                QuickReplyState.Sent
+            },
+            onFailure = { QuickReplyState.Failed(it.message ?: "Sprachnachricht fehlgeschlagen") }
+        )
+        runCatching { file.delete() }
+    }
+
     /**
      * Öffnet die Nachricht in der Quell-App: bevorzugt über den gemerkten contentIntent
      * (springt direkt in den Chat), sonst als Rückfall über den Launch-Intent der App
