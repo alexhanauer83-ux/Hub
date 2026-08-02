@@ -108,6 +108,13 @@ fun MessageRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.Top
     ) {
+        SourceAvatar(
+            sourceKey = message.sourceKey,
+            packageName = message.sourcePackageName,
+            title = message.subject ?: message.sender
+        )
+        Spacer(Modifier.width(12.dp))
+
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

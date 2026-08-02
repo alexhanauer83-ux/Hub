@@ -45,6 +45,13 @@ fun ConversationRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.Top
     ) {
+        SourceAvatar(
+            sourceKey = conversation.sourceKey,
+            packageName = conversation.packageName,
+            title = conversation.title
+        )
+        Spacer(Modifier.width(12.dp))
+
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
