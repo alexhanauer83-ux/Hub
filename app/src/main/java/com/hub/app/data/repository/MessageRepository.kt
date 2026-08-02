@@ -24,12 +24,14 @@ class MessageRepository(
         val source = sourceAppDao.getBySourceKey(message.sourceKey)
         if (source != null && !source.enabled) return // Nutzer hat diese Quelle deaktiviert
 
-        // Dieselbe Benachrichtigung wird vom Listener mehrfach eingelesen (App-Updates der
-        // Notification, erneutes Verbinden des Services). Da die stableId gleich bleibt,
-        // wuerde ein naives Upsert den vom Nutzer gesetzten Zustand (gelesen/archiviert/
-        // priorisiert) jedes Mal ueberschreiben. Deshalb den bestehenden Zustand bewahren.
+        // Dieselbe stableId kann mehrfach eingelesen werden (App-Updates der Notification,
+        // Listener-Reconnect, IMAP-Polling). Ist der INHALT unverändert, handelt es sich um
+        // eine Re-Delivery -> Nutzerzustand (gelesen/archiviert) bewahren. Hat sich der Inhalt
+        // geändert, ist es eine echte neue Nachricht -> wieder als ungelesen/aktiv zeigen.
         val existing = messageDao.getById(message.stableId)
         val sourcePriority = source?.isPriority == true
+        val sameContent = existing != null &&
+            existing.content == message.content && existing.sender == message.sender
 
         messageDao.upsert(
             MessageEntity(
@@ -42,8 +44,8 @@ class MessageRepository(
                 content = message.content,
                 timestamp = message.timestamp,
                 category = message.category,
-                isRead = existing?.isRead ?: false,
-                isArchived = existing?.isArchived ?: false,
+                isRead = if (sameContent) existing!!.isRead else false,
+                isArchived = if (sameContent) existing!!.isArchived else false,
                 priority = existing?.priority ?: sourcePriority,
                 isContentRedacted = message.isContentRedacted,
                 hasQuickReply = message.hasQuickReply,
@@ -52,7 +54,8 @@ class MessageRepository(
                 // (ein erneutes Einlesen ohne Anhang soll ein vorhandenes Bild nicht löschen).
                 imageUri = message.imageUri ?: existing?.imageUri,
                 audioUri = message.audioUri ?: existing?.audioUri,
-                snoozeUntil = existing?.snoozeUntil,
+                // Neue Nachricht hebt einen Snooze auf (soll ja wieder erscheinen).
+                snoozeUntil = if (sameContent) existing?.snoozeUntil else null,
                 subject = message.subject
             )
         )

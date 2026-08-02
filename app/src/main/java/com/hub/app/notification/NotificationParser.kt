@@ -61,9 +61,12 @@ object NotificationParser {
             sourceKey = sourceKeyFor(sbn.packageName),
             sourceLabel = appLabel,
             sourcePackageName = sbn.packageName,
-            // sbn.key ist über Updates derselben Notification stabil; postTime hängen wir an,
-            // damit aufeinanderfolgende Nachrichten desselben Chats nicht einander überschreiben.
-            externalId = "${sbn.key}|${sbn.postTime}",
+            // sbn.key ist über Updates derselben Notification stabil -> eine Zeile pro
+            // Benachrichtigung. Der postTime wird bewusst NICHT angehängt: sonst erzeugt
+            // jede Aktualisierung eine neue (ungelesene) Zeile, und bereits gelesene
+            // Nachrichten tauchen wieder auf. Ob es sich um eine echte neue Nachricht handelt,
+            // entscheidet beim Ingest der Inhaltsvergleich (siehe MessageRepository.ingest).
+            externalId = sbn.key,
             conversationId = conversationTitle?.toString() ?: title?.toString(),
             sender = sender.toString(),
             content = content.toString(),
