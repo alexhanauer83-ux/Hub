@@ -113,8 +113,19 @@ interface MessageDao {
     @Query("SELECT * FROM messages WHERE id = :id")
     suspend fun getById(id: String): MessageEntity?
 
+    /** Mehrere Nachrichten am Stück (zum Zwischenspeichern für „Rückgängig" beim Löschen). */
+    @Query("SELECT * FROM messages WHERE id IN (:ids)")
+    suspend fun getByIds(ids: List<String>): List<MessageEntity>
+
+    /** IDs aller aktuell im Posteingang ungelesenen Nachrichten (für „Rückgängig" bei Alle-gelesen). */
+    @Query("SELECT id FROM messages WHERE isArchived = 0 AND isRead = 0")
+    suspend fun unreadInboxIds(): List<String>
+
     @Query("UPDATE messages SET isRead = 1 WHERE id = :id")
     suspend fun markRead(id: String)
+
+    @Query("UPDATE messages SET isRead = 0 WHERE id = :id")
+    suspend fun markUnread(id: String)
 
     @Query("UPDATE messages SET isArchived = 1 WHERE id = :id")
     suspend fun archive(id: String)
@@ -135,8 +146,14 @@ interface MessageDao {
     @Query("UPDATE messages SET isRead = 1 WHERE id IN (:ids)")
     suspend fun markReadIn(ids: List<String>)
 
+    @Query("UPDATE messages SET isRead = 0 WHERE id IN (:ids)")
+    suspend fun markUnreadIn(ids: List<String>)
+
     @Query("UPDATE messages SET isArchived = 1 WHERE id IN (:ids)")
     suspend fun archiveIn(ids: List<String>)
+
+    @Query("UPDATE messages SET isArchived = 0 WHERE id IN (:ids)")
+    suspend fun unarchiveIn(ids: List<String>)
 
     @Query("DELETE FROM messages WHERE id IN (:ids)")
     suspend fun deleteIn(ids: List<String>)

@@ -30,6 +30,10 @@ class MessageRepository(
         // geändert, ist es eine echte neue Nachricht -> wieder als ungelesen/aktiv zeigen.
         val existing = messageDao.getById(message.stableId)
         val sourcePriority = source?.isPriority == true
+        // Smarte Priorisierung: Nachrichten eines als „immer priorisieren" markierten
+        // Absenders landen automatisch im Priority Hub (und tragen den Stern), ohne dass der
+        // Nutzer jede einzelne Nachricht antippen muss.
+        val isPriorityContact = priorityContactDao.matches(message.sourceKey, message.sender)
         val sameContent = existing != null &&
             existing.content == message.content && existing.sender == message.sender
 
@@ -46,7 +50,7 @@ class MessageRepository(
                 category = message.category,
                 isRead = if (sameContent) existing!!.isRead else false,
                 isArchived = if (sameContent) existing!!.isArchived else false,
-                priority = existing?.priority ?: sourcePriority,
+                priority = existing?.priority ?: (sourcePriority || isPriorityContact),
                 isContentRedacted = message.isContentRedacted,
                 hasQuickReply = message.hasQuickReply,
                 iconUri = message.iconUri,
@@ -77,11 +81,17 @@ class MessageRepository(
     fun observePriorityContacts(): Flow<List<PriorityContactEntity>> = priorityContactDao.observeAll()
 
     suspend fun markRead(id: String) = messageDao.markRead(id)
+    suspend fun markUnread(id: String) = messageDao.markUnread(id)
     suspend fun archive(id: String) = messageDao.archive(id)
     suspend fun unarchive(id: String) = messageDao.unarchive(id)
     suspend fun setPriority(id: String, priority: Boolean) = messageDao.setPriority(id, priority)
     suspend fun delete(id: String) = messageDao.delete(id)
     suspend fun getById(id: String): MessageEntity? = messageDao.getById(id)
+    suspend fun getByIds(ids: List<String>): List<MessageEntity> = messageDao.getByIds(ids)
+    suspend fun unreadInboxIds(): List<String> = messageDao.unreadInboxIds()
+
+    /** Stellt zuvor gelöschte Nachrichten wieder her (für „Rückgängig"). */
+    suspend fun restore(messages: List<MessageEntity>) = messages.forEach { messageDao.upsert(it) }
 
     /**
      * Legt eine von mir gesendete Antwort als ausgehende Nachricht im selben Chatverlauf ab.
@@ -109,7 +119,9 @@ class MessageRepository(
 
     suspend fun markAllRead() = messageDao.markAllRead()
     suspend fun markReadIn(ids: List<String>) = messageDao.markReadIn(ids)
+    suspend fun markUnreadIn(ids: List<String>) = messageDao.markUnreadIn(ids)
     suspend fun archiveIn(ids: List<String>) = messageDao.archiveIn(ids)
+    suspend fun unarchiveIn(ids: List<String>) = messageDao.unarchiveIn(ids)
     suspend fun deleteIn(ids: List<String>) = messageDao.deleteIn(ids)
     suspend fun snooze(id: String, until: Long) = messageDao.snooze(id, until)
     suspend fun clearExpiredSnoozes(now: Long) = messageDao.clearExpiredSnoozes(now)

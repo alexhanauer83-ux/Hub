@@ -18,4 +18,11 @@ interface PriorityContactDao {
 
     @Query("SELECT * FROM priority_contacts ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<PriorityContactEntity>>
+
+    /** Ob dieser Absender in dieser Quelle als priorisierter Kontakt geführt wird (case-insensitive). */
+    @Query(
+        "SELECT COUNT(*) > 0 FROM priority_contacts " +
+            "WHERE sourceKey = :sourceKey AND LOWER(senderMatch) = LOWER(:sender)"
+    )
+    suspend fun matches(sourceKey: String, sender: String): Boolean
 }

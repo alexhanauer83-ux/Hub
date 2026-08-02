@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.MarkEmailRead
+import androidx.compose.material.icons.filled.MarkEmailUnread
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,6 +49,7 @@ fun MessagePeekSheet(
     message: MessageEntity,
     onDismiss: () -> Unit,
     onMarkRead: () -> Unit,
+    onMarkUnread: () -> Unit,
     onArchive: () -> Unit,
     onTogglePriority: () -> Unit,
     onAlwaysPrioritizeSender: () -> Unit,
@@ -129,7 +131,9 @@ fun MessagePeekSheet(
 
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 PeekAction(Icons.Default.OpenInNew, "App öffnen", onOpenApp)
-                if (!message.isRead) {
+                if (message.isRead) {
+                    PeekAction(Icons.Default.MarkEmailUnread, "Ungelesen", onMarkUnread)
+                } else {
                     PeekAction(Icons.Default.MarkEmailRead, "Gelesen", onMarkRead)
                 }
                 PeekAction(Icons.Default.Archive, "Archivieren", onArchive)

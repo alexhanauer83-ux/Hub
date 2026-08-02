@@ -14,9 +14,12 @@ import com.hub.app.notification.ContentIntentRegistry
 import com.hub.app.notification.NotificationAccess
 import com.hub.app.notification.NotificationMessageSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
@@ -34,6 +37,12 @@ enum class HubTab { POSTEINGANG, PRIORITAET, ARCHIV }
 
 /** Zustand der Mehrfachauswahl. */
 data class SelectionState(val active: Boolean = false, val ids: Set<String> = emptySet())
+
+/**
+ * Eine widerrufbare Aktion: [label] beschreibt sie in der Snackbar, [undo] macht sie
+ * rückgängig, wenn der Nutzer „Rückgängig" antippt.
+ */
+data class UndoRequest(val label: String, val undo: () -> Unit)
 
 /** Referenz auf eine Unterhaltung (Chat/Kontakt). */
 data class ConversationRef(val sourceKey: String, val groupValue: String, val title: String)
@@ -70,7 +79,8 @@ data class HubUiState(
     val grouped: Boolean = true,
     val searchQuery: String? = null,
     val pinnedSources: Set<String> = emptySet(),
-    val hasNotificationAccess: Boolean = false
+    val hasNotificationAccess: Boolean = false,
+    val gestureHintVisible: Boolean = false
 ) {
     val isSearching: Boolean get() = searchQuery != null
 
@@ -110,6 +120,17 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
     private val notificationSettings = com.hub.app.notification.NotificationSettings(application)
     private val _pinnedSources = MutableStateFlow(notificationSettings.pinnedSources())
     private val _hasNotificationAccess = MutableStateFlow(NotificationAccess.isGranted(application))
+    private val _gestureHintVisible = MutableStateFlow(!notificationSettings.gestureHintDismissed)
+
+    /** Widerrufbare Aktionen für die Snackbar (Archivieren/Löschen/Gelesen …). */
+    private val _undo = MutableSharedFlow<UndoRequest>(extraBufferCapacity = 4)
+    val undoEvents: SharedFlow<UndoRequest> = _undo.asSharedFlow()
+
+    /** Blendet den einmaligen Gesten-Hinweis dauerhaft aus. */
+    fun dismissGestureHint() {
+        notificationSettings.gestureHintDismissed = true
+        _gestureHintVisible.value = false
+    }
 
     fun togglePinnedSource(sourceKey: String) {
         val pinned = sourceKey !in _pinnedSources.value
@@ -151,8 +172,18 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
 
     private val sourceCounts = repository.observeSourceCounts()
 
-    private val extras = combine(sourceCounts, _hasNotificationAccess, _pinnedSources) { counts, access, pinned ->
-        Triple(counts, access, pinned)
+    /** Nebenzustände, die nicht vom [FeedFilter] abhängen, gebündelt (combine bleibt 5-armig). */
+    private data class Extras(
+        val counts: List<com.hub.app.data.local.dao.SourceCount>,
+        val access: Boolean,
+        val pinned: Set<String>,
+        val gestureHint: Boolean
+    )
+
+    private val extras = combine(
+        sourceCounts, _hasNotificationAccess, _pinnedSources, _gestureHintVisible
+    ) { counts, access, pinned, gestureHint ->
+        Extras(counts, access, pinned, gestureHint)
     }
 
     val uiState: StateFlow<HubUiState> = combine(
@@ -161,19 +192,20 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
         repository.observeSources(),
         extras,
         filter
-    ) { messages, conversations, sources, (counts, access, pinned), f ->
+    ) { messages, conversations, sources, extra, f ->
         HubUiState(
             messages = messages,
             conversations = conversations,
             sources = sources,
-            sourceCounts = counts.associate { it.sourceKey to it.count },
+            sourceCounts = extra.counts.associate { it.sourceKey to it.count },
             tab = f.tab,
             sourceFilter = f.sourceFilter,
             conversationFilter = f.conversationFilter,
             grouped = f.grouped,
             searchQuery = f.searchQuery,
-            pinnedSources = pinned,
-            hasNotificationAccess = access
+            pinnedSources = extra.pinned,
+            hasNotificationAccess = extra.access,
+            gestureHintVisible = extra.gestureHint
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HubUiState())
 
@@ -344,12 +376,45 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
         markRead(message.id)
     }
 
+    /** Ohne Snackbar – für interne Aufrufe (Antwort senden, App öffnen). */
     fun markRead(id: String) = viewModelScope.launch { repository.markRead(id) }
-    fun archive(id: String) = viewModelScope.launch { repository.archive(id) }
-    fun delete(id: String) = viewModelScope.launch { repository.delete(id) }
+
+    /** Aus Wisch-Geste/Peek: als gelesen markieren, aber mit „Rückgängig". */
+    fun markReadUndoable(id: String) = viewModelScope.launch {
+        repository.markRead(id)
+        _undo.tryEmit(UndoRequest("Als gelesen markiert") {
+            viewModelScope.launch { repository.markUnread(id) }
+        })
+    }
+
+    /** Setzt eine gelesene Nachricht wieder auf ungelesen (Peek-Aktion). */
+    fun markUnread(id: String) = viewModelScope.launch { repository.markUnread(id) }
+
+    fun archive(id: String) = viewModelScope.launch {
+        repository.archive(id)
+        _undo.tryEmit(UndoRequest("Archiviert") { unarchive(id) })
+    }
+
+    fun delete(id: String) = viewModelScope.launch {
+        val entity = repository.getById(id)
+        repository.delete(id)
+        if (entity != null) {
+            _undo.tryEmit(UndoRequest("Gelöscht") {
+                viewModelScope.launch { repository.restore(listOf(entity)) }
+            })
+        }
+    }
 
     // --- Sammelaktionen ---
-    fun markAllRead() = viewModelScope.launch { repository.markAllRead() }
+    fun markAllRead() = viewModelScope.launch {
+        val ids = repository.unreadInboxIds()
+        repository.markAllRead()
+        if (ids.isNotEmpty()) {
+            _undo.tryEmit(UndoRequest("Alle als gelesen markiert") {
+                viewModelScope.launch { repository.markUnreadIn(ids) }
+            })
+        }
+    }
 
     // --- Snooze ---
     /** Stellt eine Nachricht für [durationMillis] zurück und plant das Wiederauftauchen. */
@@ -383,15 +448,34 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun markSelectedRead() = viewModelScope.launch {
-        repository.markReadIn(_selectedIds.value.toList()); exitSelection()
+        val ids = _selectedIds.value.toList()
+        repository.markReadIn(ids); exitSelection()
+        if (ids.isNotEmpty()) {
+            _undo.tryEmit(UndoRequest("${ids.size} als gelesen markiert") {
+                viewModelScope.launch { repository.markUnreadIn(ids) }
+            })
+        }
     }
 
     fun archiveSelected() = viewModelScope.launch {
-        repository.archiveIn(_selectedIds.value.toList()); exitSelection()
+        val ids = _selectedIds.value.toList()
+        repository.archiveIn(ids); exitSelection()
+        if (ids.isNotEmpty()) {
+            _undo.tryEmit(UndoRequest("${ids.size} archiviert") {
+                viewModelScope.launch { repository.unarchiveIn(ids) }
+            })
+        }
     }
 
     fun deleteSelected() = viewModelScope.launch {
-        repository.deleteIn(_selectedIds.value.toList()); exitSelection()
+        val ids = _selectedIds.value.toList()
+        val entities = repository.getByIds(ids)
+        repository.deleteIn(ids); exitSelection()
+        if (entities.isNotEmpty()) {
+            _undo.tryEmit(UndoRequest("${entities.size} gelöscht") {
+                viewModelScope.launch { repository.restore(entities) }
+            })
+        }
     }
 
     private val soundSettings by lazy {

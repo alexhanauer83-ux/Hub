@@ -24,6 +24,14 @@ class NotificationSettings(context: Context) {
         get() = prefs.getBoolean(KEY_BG_SYNC, true)
         set(value) = prefs.edit().putBoolean(KEY_BG_SYNC, value).apply()
 
+    /**
+     * Ob der einmalige Gesten-Hinweis im Posteingang bereits weggetippt wurde. Startet auf
+     * false, damit neue Nutzer die Wisch-/Tipp-Gesten überhaupt entdecken.
+     */
+    var gestureHintDismissed: Boolean
+        get() = prefs.getBoolean(KEY_GESTURE_HINT, false)
+        set(value) = prefs.edit().putBoolean(KEY_GESTURE_HINT, value).apply()
+
     /** Angepinnte Quellen-Reiter (erscheinen vorne in der Reiter-Leiste). */
     fun pinnedSources(): Set<String> = prefs.getStringSet(KEY_PINNED, emptySet())?.toSet() ?: emptySet()
 
@@ -54,5 +62,6 @@ class NotificationSettings(context: Context) {
         const val KEY_MUTED = "muted_sources"
         const val KEY_BG_SYNC = "background_sync"
         const val KEY_PINNED = "pinned_sources"
+        const val KEY_GESTURE_HINT = "gesture_hint_dismissed"
     }
 }
