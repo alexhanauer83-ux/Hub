@@ -24,6 +24,14 @@ class NotificationSettings(context: Context) {
         get() = prefs.getBoolean(KEY_BG_SYNC, true)
         set(value) = prefs.edit().putBoolean(KEY_BG_SYNC, value).apply()
 
+    /** Angepinnte Quellen-Reiter (erscheinen vorne in der Reiter-Leiste). */
+    fun pinnedSources(): Set<String> = prefs.getStringSet(KEY_PINNED, emptySet())?.toSet() ?: emptySet()
+
+    fun setPinned(sourceKey: String, pinned: Boolean) {
+        val updated = pinnedSources().toMutableSet().apply { if (pinned) add(sourceKey) else remove(sourceKey) }
+        prefs.edit().putStringSet(KEY_PINNED, updated).apply()
+    }
+
     /**
      * Quellen (sourceKeys), für die Hub keine eigene Benachrichtigung/keinen Ton erzeugt.
      * Die Nachrichten landen weiterhin im Feed – nur die Alarmierung entfällt.
@@ -45,5 +53,6 @@ class NotificationSettings(context: Context) {
         const val KEY_REPLACE = "replace_other_notifications"
         const val KEY_MUTED = "muted_sources"
         const val KEY_BG_SYNC = "background_sync"
+        const val KEY_PINNED = "pinned_sources"
     }
 }

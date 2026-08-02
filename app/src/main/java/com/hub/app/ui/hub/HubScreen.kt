@@ -105,10 +105,12 @@ fun HubScreen(
                 sources = state.sources,
                 sourceCounts = state.sourceCounts,
                 selectedSourceKey = state.sourceFilter,
+                pinnedSources = state.pinnedSources,
                 onSelectSource = { key ->
                     viewModel.selectSourceFilter(key)
                     scope.launch { drawerState.close() }
-                }
+                },
+                onTogglePin = viewModel::togglePinnedSource
             )
         }
     ) {
@@ -232,6 +234,8 @@ fun HubScreen(
                         selectedTab = state.tab,
                         selectedSourceKey = state.sourceFilter,
                         nativeSources = state.sources.filter { it.isNativeConnector && it.enabled },
+                        sourceCounts = state.sourceCounts,
+                        pinnedSources = state.pinnedSources,
                         onSelectTab = viewModel::selectTab,
                         onSelectSource = viewModel::selectSourceFilter
                     )

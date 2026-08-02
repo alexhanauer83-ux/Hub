@@ -1,9 +1,11 @@
 package com.hub.app.ui.hub
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -12,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AllInbox
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -39,7 +42,9 @@ fun SourceDrawer(
     sources: List<SourceAppEntity>,
     sourceCounts: Map<String, Int>,
     selectedSourceKey: String?,
-    onSelectSource: (String?) -> Unit
+    pinnedSources: Set<String>,
+    onSelectSource: (String?) -> Unit,
+    onTogglePin: (String) -> Unit
 ) {
     ModalDrawerSheet(
         drawerContainerColor = MaterialTheme.colorScheme.surface
@@ -74,11 +79,33 @@ fun SourceDrawer(
 
             items(visible, key = { it.sourceKey }) { source ->
                 val count = sourceCounts[source.sourceKey] ?: 0
+                val pinned = source.sourceKey in pinnedSources
                 NavigationDrawerItem(
                     label = { Text(source.label) },
                     selected = source.sourceKey == selectedSourceKey,
                     icon = { SourceIcon(source) },
-                    badge = { if (count > 0) Badge { Text(count.toString()) } },
+                    badge = {
+                        androidx.compose.foundation.layout.Row(
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            if (count > 0) {
+                                Badge { Text(count.toString()) }
+                                Spacer(Modifier.width(8.dp))
+                            }
+                            // Native Quellen (Matrix/Telegram/E-Mail) lassen sich als Reiter anpinnen.
+                            if (source.isNativeConnector) {
+                                Icon(
+                                    imageVector = Icons.Default.PushPin,
+                                    contentDescription = if (pinned) "Loesen" else "Anpinnen",
+                                    tint = if (pinned) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clickable { onTogglePin(source.sourceKey) }
+                                )
+                            }
+                        }
+                    },
                     onClick = { onSelectSource(source.sourceKey) },
                     modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                 )

@@ -69,6 +69,7 @@ data class HubUiState(
     val conversationFilter: ConversationRef? = null,
     val grouped: Boolean = true,
     val searchQuery: String? = null,
+    val pinnedSources: Set<String> = emptySet(),
     val hasNotificationAccess: Boolean = false
 ) {
     val isSearching: Boolean get() = searchQuery != null
@@ -106,7 +107,15 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
     private val _conversationFilter = MutableStateFlow<ConversationRef?>(null)
     private val _grouped = MutableStateFlow(true)
     private val _searchQuery = MutableStateFlow<String?>(null)
+    private val notificationSettings = com.hub.app.notification.NotificationSettings(application)
+    private val _pinnedSources = MutableStateFlow(notificationSettings.pinnedSources())
     private val _hasNotificationAccess = MutableStateFlow(NotificationAccess.isGranted(application))
+
+    fun togglePinnedSource(sourceKey: String) {
+        val pinned = sourceKey !in _pinnedSources.value
+        notificationSettings.setPinned(sourceKey, pinned)
+        _pinnedSources.value = notificationSettings.pinnedSources()
+    }
 
     private val filter = combine(
         _tab, _sourceFilter, _conversationFilter, _grouped, _searchQuery
@@ -142,13 +151,17 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
 
     private val sourceCounts = repository.observeSourceCounts()
 
+    private val extras = combine(sourceCounts, _hasNotificationAccess, _pinnedSources) { counts, access, pinned ->
+        Triple(counts, access, pinned)
+    }
+
     val uiState: StateFlow<HubUiState> = combine(
         messages,
         conversations,
         repository.observeSources(),
-        combine(sourceCounts, _hasNotificationAccess) { counts, access -> counts to access },
+        extras,
         filter
-    ) { messages, conversations, sources, (counts, access), f ->
+    ) { messages, conversations, sources, (counts, access, pinned), f ->
         HubUiState(
             messages = messages,
             conversations = conversations,
@@ -159,6 +172,7 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
             conversationFilter = f.conversationFilter,
             grouped = f.grouped,
             searchQuery = f.searchQuery,
+            pinnedSources = pinned,
             hasNotificationAccess = access
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HubUiState())
