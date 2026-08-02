@@ -168,8 +168,10 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
             .map { (key, msgs) ->
                 // observeInbox liefert bereits nach Zeit absteigend -> erstes = neuestes.
                 val latest = msgs.first()
-                // 1:1-Chat (nur ein Absender) -> lesbarer Absendername; Gruppe -> Gruppenschlüssel.
-                val title = if (msgs.all { it.sender == latest.sender }) latest.sender else latest.groupValue()
+                // Titel: expliziter Konversationstitel (z. B. Matrix-Raumname) > 1:1-Absender
+                // (nur ein Absender) > Gruppenschlüssel.
+                val title = latest.conversationTitle?.takeIf { it.isNotBlank() }
+                    ?: if (msgs.all { it.sender == latest.sender }) latest.sender else latest.groupValue()
                 ConversationSummary(
                     sourceKey = key.first,
                     groupValue = key.second,

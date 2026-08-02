@@ -56,7 +56,8 @@ class MessageRepository(
                 audioUri = message.audioUri ?: existing?.audioUri,
                 // Neue Nachricht hebt einen Snooze auf (soll ja wieder erscheinen).
                 snoozeUntil = if (sameContent) existing?.snoozeUntil else null,
-                subject = message.subject
+                subject = message.subject,
+                conversationTitle = message.conversationTitle ?: existing?.conversationTitle
             )
         )
     }

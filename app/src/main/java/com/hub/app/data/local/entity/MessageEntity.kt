@@ -63,5 +63,7 @@ data class MessageEntity(
     /** true = von mir gesendete Antwort (im Chatverlauf rechts dargestellt). */
     val isOutgoing: Boolean = false,
     /** Betreff (v. a. E-Mail), separat vom Textkörper in [content]. */
-    val subject: String? = null
+    val subject: String? = null,
+    /** Lesbarer Titel der Unterhaltung (z. B. Matrix-Raumname), unabhängig vom Gruppenschlüssel. */
+    val conversationTitle: String? = null
 )

@@ -203,8 +203,14 @@ class MatrixConnector(
                 val response = api.sync(auth, since, LONG_POLL_TIMEOUT_MS)
                 if (!skipBacklog) {
                     response.rooms?.join?.forEach { (roomId, room) ->
+                        // Raumname aus State-Events übernehmen (falls enthalten).
+                        val stateName = (room.state?.events.orEmpty() + room.timeline?.events.orEmpty())
+                            .firstOrNull { it.type == "m.room.name" }?.content?.name
+                        if (!stateName.isNullOrBlank()) roomNames[roomId] = stateName
+                        val roomName = roomNames[roomId] ?: ensureRoomName(api, auth, roomId)
+
                         room.timeline?.events?.forEach { event ->
-                            event.toIncomingMessage(roomId, selfId)?.let { ingestSink.ingest(it) }
+                            event.toIncomingMessage(roomId, selfId, roomName)?.let { ingestSink.ingest(it) }
                         }
                     }
                 }
@@ -248,7 +254,21 @@ class MatrixConnector(
 
     // --- intern --------------------------------------------------------------
 
-    private fun MatrixEvent.toIncomingMessage(roomId: String, selfId: String?): IncomingMessage? {
+    // roomId -> Anzeigename (Raumname); vermeidet, dass der rohe Raum-ID-Schlüssel als Titel steht.
+    private val roomNames = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /** Holt den Raumnamen (gecached); null, wenn der Raum keinen gesetzten Namen hat. */
+    private suspend fun ensureRoomName(api: MatrixApi, auth: String, roomId: String): String? {
+        roomNames[roomId]?.let { return it }
+        val name = runCatching {
+            val r = api.roomName(auth, roomId)
+            if (r.isSuccessful) r.body()?.name?.takeIf { it.isNotBlank() } else null
+        }.getOrNull()
+        if (name != null) roomNames[roomId] = name
+        return name
+    }
+
+    private fun MatrixEvent.toIncomingMessage(roomId: String, selfId: String?, roomName: String?): IncomingMessage? {
         // Eigene ausgehende Nachrichten nicht als Eingang spiegeln.
         if (sender != null && sender == selfId) return null
 
@@ -290,7 +310,8 @@ class MatrixConnector(
             isContentRedacted = type == "m.room.encrypted",
             hasQuickReply = true,
             audioUri = audioUri,
-            imageUri = imageUri
+            imageUri = imageUri,
+            conversationTitle = roomName
         )
     }
 

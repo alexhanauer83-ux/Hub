@@ -19,9 +19,9 @@ import com.hub.app.data.local.entity.SourceAppEntity
  */
 @Database(
     entities = [MessageEntity::class, SourceAppEntity::class, PriorityContactEntity::class],
-    // v5: subject (E-Mail-Betreff). Davor v4 isOutgoing, v3 snooze, v2 image/audioUri.
-    // Migration destruktiv (fallbackToDestructiveMigration) – DB ist nur lokaler Cache.
-    version = 5,
+    // v6: conversationTitle (z. B. Matrix-Raumname). Davor v5 subject, v4 isOutgoing,
+    // v3 snooze, v2 image/audioUri. Migration destruktiv – DB ist nur lokaler Cache.
+    version = 6,
     exportSchema = true
 )
 @TypeConverters(Converters::class)

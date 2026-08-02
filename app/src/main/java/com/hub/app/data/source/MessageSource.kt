@@ -75,7 +75,8 @@ data class IncomingMessage(
     val iconUri: String? = null,
     val imageUri: String? = null,
     val audioUri: String? = null,
-    val subject: String? = null
+    val subject: String? = null,
+    val conversationTitle: String? = null
 ) {
     /** Quellenübergreifend eindeutiger Room-Primärschlüssel. */
     val stableId: String get() = "$sourceKey:$externalId"
