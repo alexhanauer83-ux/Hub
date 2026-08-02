@@ -138,6 +138,19 @@ fun MessageRow(
 
             Spacer(Modifier.height(2.dp))
 
+            // Betreff (z. B. E-Mail) als eigene, hervorgehobene Zeile.
+            message.subject?.takeIf { it.isNotBlank() }?.let { subject ->
+                Text(
+                    text = subject,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = if (message.isRead) FontWeight.Normal else FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(2.dp))
+            }
+
             if (message.isContentRedacted) {
                 // Ehrlich kennzeichnen statt Platzhaltertext als echten Inhalt auszugeben.
                 Row(verticalAlignment = Alignment.CenterVertically) {

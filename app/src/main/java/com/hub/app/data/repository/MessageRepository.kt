@@ -52,7 +52,8 @@ class MessageRepository(
                 // (ein erneutes Einlesen ohne Anhang soll ein vorhandenes Bild nicht löschen).
                 imageUri = message.imageUri ?: existing?.imageUri,
                 audioUri = message.audioUri ?: existing?.audioUri,
-                snoozeUntil = existing?.snoozeUntil
+                snoozeUntil = existing?.snoozeUntil,
+                subject = message.subject
             )
         )
     }

@@ -19,9 +19,9 @@ import com.hub.app.data.local.entity.SourceAppEntity
  */
 @Database(
     entities = [MessageEntity::class, SourceAppEntity::class, PriorityContactEntity::class],
-    // v4: isOutgoing (eigene Antworten im Verlauf). Davor v3 snooze, v2 image/audioUri.
+    // v5: subject (E-Mail-Betreff). Davor v4 isOutgoing, v3 snooze, v2 image/audioUri.
     // Migration destruktiv (fallbackToDestructiveMigration) – DB ist nur lokaler Cache.
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 @TypeConverters(Converters::class)

@@ -61,5 +61,7 @@ data class MessageEntity(
     /** Zurückgestellt ("snooze") bis zu diesem Zeitpunkt (epoch ms); solange aus dem Feed ausgeblendet. */
     val snoozeUntil: Long? = null,
     /** true = von mir gesendete Antwort (im Chatverlauf rechts dargestellt). */
-    val isOutgoing: Boolean = false
+    val isOutgoing: Boolean = false,
+    /** Betreff (v. a. E-Mail), separat vom Textkörper in [content]. */
+    val subject: String? = null
 )

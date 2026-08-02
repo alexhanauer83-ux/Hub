@@ -81,6 +81,12 @@ fun MessagePeekSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            // Betreff (z. B. E-Mail) hervorgehoben über dem Textkörper.
+            message.subject?.takeIf { it.isNotBlank() }?.let { subject ->
+                Spacer(Modifier.height(12.dp))
+                Text(subject, style = MaterialTheme.typography.titleMedium)
+            }
+
             Spacer(Modifier.height(16.dp))
 
             Text(

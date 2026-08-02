@@ -121,6 +121,7 @@ class ImapConnector(
                     val sender = from?.personal ?: from?.address ?: "Unbekannt"
                     val subject = message.subject.orEmpty()
 
+                    val fromAddress = from?.address ?: sender
                     ingestSink.ingest(
                         IncomingMessage(
                             sourceKey = sourceKey,
@@ -129,9 +130,12 @@ class ImapConnector(
                             // Message-ID ist stabil (anders als die Message-Nummer, die sich
                             // beim Löschen verschiebt); Fallback auf die Nummer.
                             externalId = messageId(message) ?: "${message.messageNumber}",
-                            conversationId = subject.ifBlank { sender },
+                            // Nach Absender gruppieren: alle Mails eines Kontakts landen in
+                            // einer Unterhaltung (Betreff steht separat je Mail).
+                            conversationId = fromAddress,
                             sender = sender,
-                            content = buildPreview(subject, message),
+                            subject = subject.ifBlank { "(kein Betreff)" },
+                            content = extractBody(message),
                             timestamp = message.receivedDate?.time ?: System.currentTimeMillis(),
                             category = MessageCategory.EMAIL
                         )
@@ -144,20 +148,34 @@ class ImapConnector(
     private fun messageId(message: javax.mail.Message): String? =
         runCatching { message.getHeader("Message-ID")?.firstOrNull() }.getOrNull()
 
-    /** Betreff + kurzer Textauszug (einfaches Plaintext-Handling). */
-    private fun buildPreview(subject: String, message: javax.mail.Message): String {
-        val body = runCatching {
-            when (val c = message.content) {
-                is String -> c
-                is javax.mail.Multipart -> (0 until c.count)
-                    .map { c.getBodyPart(it) }
-                    .firstOrNull { it.isMimeType("text/plain") }
-                    ?.content as? String
-                else -> null
-            }
-        }.getOrNull()?.trim()?.replace(Regex("\\s+"), " ")?.take(140)
+    /**
+     * Voller Klartext-Körper der Mail (für die Detailansicht). Behandelt String- und
+     * (verschachtelte) Multipart-Inhalte und bevorzugt text/plain; auf [MAX_BODY_CHARS]
+     * begrenzt, damit riesige Mails die DB nicht sprengen.
+     */
+    private fun extractBody(message: javax.mail.Message): String {
+        val raw = runCatching { plainTextOf(message.content) }.getOrNull()
+        val cleaned = raw?.trim()?.replace(Regex("[ \\t]+"), " ")?.replace(Regex("\n{3,}"), "\n\n")
+        return (cleaned ?: "").take(MAX_BODY_CHARS)
+    }
 
-        return if (body.isNullOrBlank()) subject else "$subject – $body"
+    /** Rekursiv den ersten text/plain-Teil finden (sonst leer). */
+    private fun plainTextOf(content: Any?): String? = when (content) {
+        is String -> content
+        is javax.mail.Multipart -> {
+            var found: String? = null
+            for (i in 0 until content.count) {
+                val part = content.getBodyPart(i)
+                found = when {
+                    part.isMimeType("text/plain") -> part.content as? String
+                    part.isMimeType("multipart/*") -> plainTextOf(part.content)
+                    else -> null
+                }
+                if (!found.isNullOrBlank()) break
+            }
+            found
+        }
+        else -> null
     }
 
     /** Öffnet, verarbeitet und schließt einen Folder auch im Fehlerfall. */
@@ -186,6 +204,7 @@ class ImapConnector(
         private const val TAG = "ImapConnector"
         private const val POLL_INTERVAL_MILLIS = 5 * 60 * 1000L
         private const val FETCH_WINDOW = 50
+        private const val MAX_BODY_CHARS = 8000
     }
 }
 
