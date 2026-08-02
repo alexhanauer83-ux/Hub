@@ -40,19 +40,11 @@ fun ConversationRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background)
+            .background(colorForSource(conversation.sourceKey).copy(alpha = SOURCE_TINT_ALPHA))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Box(
-            modifier = Modifier
-                .padding(top = 6.dp)
-                .size(8.dp)
-                .background(colorForSource(conversation.sourceKey), CircleShape)
-        )
-        Spacer(Modifier.width(12.dp))
-
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

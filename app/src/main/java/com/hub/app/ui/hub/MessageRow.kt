@@ -91,8 +91,10 @@ fun MessageRow(
         modifier = modifier
             .fillMaxWidth()
             .background(
+                // Ganze Zeile leicht in der Quellenfarbe einfärben (ersetzt den bunten Punkt,
+                // macht die Herkunft auf einen Blick erkennbar). Auswahl gewinnt.
                 if (selected) MaterialTheme.colorScheme.surfaceVariant
-                else MaterialTheme.colorScheme.background
+                else colorForSource(message.sourceKey).copy(alpha = SOURCE_TINT_ALPHA)
             )
             .then(
                 if (onClick != null || onLongPress != null || onDoubleClick != null) {
@@ -106,14 +108,6 @@ fun MessageRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Box(
-            modifier = Modifier
-                .padding(top = 6.dp)
-                .size(8.dp)
-                .background(colorForSource(message.sourceKey), CircleShape)
-        )
-        Spacer(Modifier.width(12.dp))
-
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -225,6 +219,9 @@ fun MessageRow(
 }
 
 /** Stabile, deterministische Farbe pro Quelle – kein Zufall über App-Neustarts hinweg. */
+/** Deckkraft der Quellen-Einfärbung einer Zeile – bewusst dezent, damit Text lesbar bleibt. */
+const val SOURCE_TINT_ALPHA = 0.12f
+
 fun colorForSource(sourceKey: String): Color {
     val palette = listOf(
         Color(0xFF6FE3C4), Color(0xFF7FA9F0), Color(0xFFE3B96F),
