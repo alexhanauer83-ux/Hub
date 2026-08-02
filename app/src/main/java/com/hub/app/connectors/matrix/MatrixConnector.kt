@@ -10,6 +10,8 @@ import com.hub.app.data.source.ReplyTarget
 import com.hub.app.data.source.SourceCapability
 import com.hub.app.data.source.SourceQuality
 import com.squareup.moshi.Moshi
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -149,7 +151,7 @@ class MatrixConnector(
         val api = buildApi(base)
         val mime = "audio/mp4"
         val bytes = file.readBytes()
-        val requestBody = okhttp3.RequestBody.create(okhttp3.MediaType.parse(mime), bytes)
+        val requestBody = bytes.toRequestBody(mime.toMediaTypeOrNull())
         val upload = api.uploadMedia(bearer(token), mime, file.name, requestBody)
         api.sendAudio(
             bearer(token), roomId, UUID.randomUUID().toString(),
