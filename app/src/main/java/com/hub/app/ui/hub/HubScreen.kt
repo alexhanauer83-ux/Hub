@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Close
@@ -406,10 +407,18 @@ fun HubScreen(
     }
 
     if (composeSheetOpen) {
+        val telegramAvailable = state.sources.any {
+            it.sourceKey == com.hub.app.connectors.telegram.TelegramBotConnector.SOURCE_KEY && it.enabled
+        }
         NewMessageSheet(
+            telegramAvailable = telegramAvailable,
             onDismiss = { composeSheetOpen = false },
             onSms = { composeSheetOpen = false; onComposeSms() },
-            onMatrix = { composeSheetOpen = false; onOpenMatrix() }
+            onMatrix = { composeSheetOpen = false; onOpenMatrix() },
+            onTelegram = {
+                composeSheetOpen = false
+                viewModel.selectSourceFilter(com.hub.app.connectors.telegram.TelegramBotConnector.SOURCE_KEY)
+            }
         )
     }
 }
@@ -418,9 +427,11 @@ fun HubScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun NewMessageSheet(
+    telegramAvailable: Boolean,
     onDismiss: () -> Unit,
     onSms: () -> Unit,
-    onMatrix: () -> Unit
+    onMatrix: () -> Unit,
+    onTelegram: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
@@ -444,6 +455,15 @@ private fun NewMessageSheet(
                 leadingContent = { Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                 modifier = Modifier.clickable(onClick = onMatrix)
             )
+            if (telegramAvailable) {
+                ListItem(
+                    headlineContent = { Text("Telegram") },
+                    // Bots können keinen Erstkontakt aufbauen – daher: bekannten Chat wählen.
+                    supportingContent = { Text("Bestehenden Chat wählen") },
+                    leadingContent = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                    modifier = Modifier.clickable(onClick = onTelegram)
+                )
+            }
         }
     }
 }
