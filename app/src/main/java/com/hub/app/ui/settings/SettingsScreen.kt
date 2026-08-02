@@ -272,7 +272,11 @@ private fun UpdateSection(
 
         when (val s = state) {
             UpdateState.Checking -> Text("Suche nach Updates …", style = MaterialTheme.typography.bodyMedium)
-            UpdateState.Downloading -> Text("Update wird geladen …", style = MaterialTheme.typography.bodyMedium)
+            UpdateState.Downloading -> Text(
+                "Update wird im Hintergrund geladen – du kannst die App verlassen. " +
+                    "Die Installation startet automatisch.",
+                style = MaterialTheme.typography.bodyMedium
+            )
             UpdateState.UpToDate -> {
                 Text("Du hast die neueste Version.", style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(4.dp))

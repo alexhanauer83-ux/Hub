@@ -78,33 +78,27 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         )
     }
 
-    private var pendingApk: java.io.File? = null
+    private var pendingInfo: com.hub.app.update.UpdateManager.UpdateInfo? = null
 
-    fun downloadAndInstall(info: com.hub.app.update.UpdateManager.UpdateInfo) = viewModelScope.launch {
+    fun downloadAndInstall(info: com.hub.app.update.UpdateManager.UpdateInfo) {
         val app = getApplication<Application>()
+        pendingInfo = info
+        // Erst Berechtigung sicherstellen, dann herunterladen (sonst laedt es, laesst sich
+        // aber nicht installieren).
+        if (!com.hub.app.update.UpdateManager.canInstall(app)) {
+            _updateState.value = UpdateState.NeedsInstallPermission(info)
+            return
+        }
+        // Download laeuft ueber den System-DownloadManager im Hintergrund weiter (ueberlebt
+        // Bildschirmsperre/App-Wechsel); Installation startet der UpdateDownloadReceiver.
+        com.hub.app.update.UpdateManager.enqueueDownload(app, info)
         _updateState.value = UpdateState.Downloading
-        com.hub.app.update.UpdateManager.download(app, info).fold(
-            onSuccess = { file ->
-                pendingApk = file
-                if (com.hub.app.update.UpdateManager.canInstall(app)) {
-                    _updateState.value = UpdateState.Available(info)
-                    com.hub.app.update.UpdateManager.install(app, file)
-                } else {
-                    // Hub darf noch keine Apps installieren -> Nutzer muss das erst erlauben.
-                    _updateState.value = UpdateState.NeedsInstallPermission(info)
-                }
-            },
-            onFailure = { _updateState.value = UpdateState.Error(it.message ?: "Download fehlgeschlagen") }
-        )
     }
 
-    /** Nachdem der Nutzer die Installations-Berechtigung erteilt hat: erneut installieren. */
+    /** Nachdem der Nutzer die Installations-Berechtigung erteilt hat: Download erneut anstossen. */
     fun installPending() {
-        val app = getApplication<Application>()
-        val file = pendingApk ?: return
-        if (com.hub.app.update.UpdateManager.canInstall(app)) {
-            com.hub.app.update.UpdateManager.install(app, file)
-        }
+        val info = pendingInfo ?: return
+        downloadAndInstall(info)
     }
 
     fun installPermissionIntent(): Intent =

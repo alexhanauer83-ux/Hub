@@ -27,6 +27,10 @@ object UpdateManager {
     private const val OWNER = "alexhanauer83-ux"
     private const val REPO = "Hub"
     private const val LATEST_URL = "https://api.github.com/repos/$OWNER/$REPO/releases/latest"
+    private const val DOWNLOAD_DIR = "updates"
+    private const val FILE_NAME = "hub-update.apk"
+    private const val APK_MIME = "application/vnd.android.package-archive"
+    private const val KEY_DOWNLOAD_ID = "download_id"
 
     // Timeouts, damit ein Download bei schlechtem Netz sauber abbricht statt zu haengen.
     private val client = OkHttpClient.Builder()
@@ -77,33 +81,49 @@ object UpdateManager {
         }
     }
 
-    /** Lädt die APK in den Cache und liefert die Datei. */
-    suspend fun download(context: Context, info: UpdateInfo): Result<File> = withContext(Dispatchers.IO) {
-        runCatching {
-            val dir = File(context.cacheDir, "updates").apply { mkdirs() }
-            // Cache aufräumen, damit sich keine alten APKs sammeln.
-            dir.listFiles()?.forEach { it.delete() }
-            val target = File(dir, "hub-${info.versionName}.apk")
+    /**
+     * Lädt die APK über den **System-DownloadManager** herunter. Der läuft im Hintergrund
+     * weiter, auch wenn der Bildschirm gesperrt oder die App gewechselt wird, und hat kein
+     * kurzes Timeout. Nach Abschluss startet [UpdateDownloadReceiver] die Installation.
+     * Liefert die Download-ID.
+     */
+    fun enqueueDownload(context: Context, info: UpdateInfo): Long {
+        val dm = context.getSystemService(android.app.DownloadManager::class.java)
+        // Alte Datei entfernen, damit keine veraltete APK installiert wird.
+        runCatching { downloadFile(context).delete() }
 
-            val request = Request.Builder().url(info.apkUrl).build()
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) throw IOException("Download fehlgeschlagen (${response.code})")
-                val sink = response.body?.byteStream() ?: throw IOException("Leerer Download")
-                target.outputStream().use { out -> sink.copyTo(out) }
-            }
-            target
-        }
+        val request = android.app.DownloadManager.Request(Uri.parse(info.apkUrl))
+            .setTitle("Hub-Update ${info.versionName}")
+            .setDescription("Wird heruntergeladen …")
+            .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalFilesDir(context, DOWNLOAD_DIR, FILE_NAME)
+            .setMimeType(APK_MIME)
+
+        val id = dm.enqueue(request)
+        prefs(context).edit().putLong(KEY_DOWNLOAD_ID, id).apply()
+        return id
     }
 
-    /** Startet den System-Installer für die geladene APK. */
-    fun install(context: Context, apk: File) {
+    fun expectedDownloadId(context: Context): Long =
+        prefs(context).getLong(KEY_DOWNLOAD_ID, -1L)
+
+    private fun downloadFile(context: Context): File =
+        File(context.getExternalFilesDir(DOWNLOAD_DIR), FILE_NAME)
+
+    /** Startet den System-Installer für die zuletzt heruntergeladene APK. */
+    fun installDownloaded(context: Context) {
+        val apk = downloadFile(context)
+        if (!apk.exists()) return
         val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apk)
         val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
+            setDataAndType(uri, APK_MIME)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(intent)
     }
+
+    private fun prefs(context: Context) =
+        context.applicationContext.getSharedPreferences("hub_update", Context.MODE_PRIVATE)
 
     fun currentVersion(context: Context): String =
         runCatching {

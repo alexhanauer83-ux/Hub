@@ -117,6 +117,15 @@
             android:name=".snooze.SnoozeReceiver"
             android:exported="false" />
 
+        <!-- Startet die Installation, wenn der System-DownloadManager das Update fertig hat. -->
+        <receiver
+            android:name=".update.UpdateDownloadReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
+            </intent-filter>
+        </receiver>
+
         <!-- Teilt die heruntergeladene Update-APK sicher mit dem System-Installer. -->
         <provider
             android:name="androidx.core.content.FileProvider"

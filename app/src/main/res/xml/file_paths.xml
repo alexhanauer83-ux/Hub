@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- Update-APKs liegen im Cache der App und werden von dort dem Installer freigegeben. -->
-    <cache-path name="updates" path="updates/" />
+    <!-- Update-APKs (DownloadManager legt sie im externen App-Verzeichnis ab). -->
+    <external-files-path name="updates" path="updates/" />
+    <!-- Rueckwaertskompatibel: fruehere Cache-Ablage. -->
+    <cache-path name="updates_cache" path="updates/" />
 </paths>
