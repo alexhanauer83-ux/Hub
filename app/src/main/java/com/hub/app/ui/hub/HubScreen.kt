@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -165,6 +166,14 @@ fun HubScreen(
                           }
                       } else if (!state.isSearching) {
                         // Im Suchmodus keine weiteren Aktionen (Fokus auf dem Suchfeld).
+                        // Neuer Matrix-Chat (führt in den Matrix-Bereich mit Direktchat).
+                        if (state.sourceFilter == com.hub.app.connectors.matrix.MatrixConnector.SOURCE_KEY &&
+                            state.conversationFilter == null
+                        ) {
+                            IconButton(onClick = onOpenMatrix) {
+                                Icon(Icons.Default.Add, contentDescription = "Neuer Chat", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                         if (state.tab == HubTab.POSTEINGANG && state.conversationFilter == null && state.sourceFilter == null) {
                             IconButton(onClick = { viewModel.markAllRead() }) {
                                 Icon(Icons.Default.DoneAll, contentDescription = "Alle als gelesen", tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -216,13 +225,17 @@ fun HubScreen(
                     AccessBanner(onOpenOnboarding)
                 }
 
-                // Tabs + Gruppieren-Umschalter nur in der Übersicht (kein Quellen-/Konversationsfilter).
-                if (state.sourceFilter == null && state.conversationFilter == null) {
+                // Reiter (Ansichten + native Quellen) – nur ausblenden im Detail/Suche.
+                if (state.conversationFilter == null && !state.isSearching) {
                     HubFilterBar(
                         selectedTab = state.tab,
-                        onSelectTab = viewModel::selectTab
+                        selectedSourceKey = state.sourceFilter,
+                        nativeSources = state.sources.filter { it.isNativeConnector && it.enabled },
+                        onSelectTab = viewModel::selectTab,
+                        onSelectSource = viewModel::selectSourceFilter
                     )
-                    if (state.tab == HubTab.POSTEINGANG) {
+                    // Gruppieren-Umschalter, wo eine gruppierte Übersicht möglich ist.
+                    if (state.tab == HubTab.POSTEINGANG || state.sourceFilter != null) {
                         androidx.compose.foundation.layout.Row(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
                         ) {

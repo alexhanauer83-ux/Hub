@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -72,10 +73,13 @@ data class HubUiState(
 ) {
     val isSearching: Boolean get() = searchQuery != null
 
-    /** Gruppierte Übersicht anzeigen? Nur im Posteingang ohne aktive Filter/Suche. */
+    /**
+     * Gruppierte Übersicht anzeigen? Im Posteingang sowie in jeder Quellen-Auswahl
+     * (Matrix/Telegram/E-Mail-Reiter) – nicht in Suche, Konversations-Detail, Priorität/Archiv.
+     */
     val showConversations: Boolean
         get() = grouped && !isSearching && conversationFilter == null &&
-            sourceFilter == null && tab == HubTab.POSTEINGANG
+            (sourceFilter != null || tab == HubTab.POSTEINGANG)
 }
 
 private data class FeedFilter(
@@ -124,8 +128,17 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Gruppierte Übersicht: aus dem Posteingang zu Unterhaltungen zusammengefasst.
-    private val conversations = repository.observeInbox().map { groupIntoConversations(it) }
+    // Gruppierte Übersicht – abhängig vom Filter: Posteingang ODER die gewählte Quelle
+    // (Matrix/Telegram/E-Mail-Reiter) zu Unterhaltungen zusammengefasst.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val conversations = filter.flatMapLatest { f ->
+        when {
+            !f.searchQuery.isNullOrBlank() || f.conversationFilter != null -> flowOf(emptyList())
+            f.sourceFilter != null -> repository.observeBySource(f.sourceFilter).map { groupIntoConversations(it) }
+            f.tab == HubTab.POSTEINGANG -> repository.observeInbox().map { groupIntoConversations(it) }
+            else -> flowOf(emptyList())
+        }
+    }
 
     private val sourceCounts = repository.observeSourceCounts()
 
@@ -155,10 +168,12 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
             .map { (key, msgs) ->
                 // observeInbox liefert bereits nach Zeit absteigend -> erstes = neuestes.
                 val latest = msgs.first()
+                // 1:1-Chat (nur ein Absender) -> lesbarer Absendername; Gruppe -> Gruppenschlüssel.
+                val title = if (msgs.all { it.sender == latest.sender }) latest.sender else latest.groupValue()
                 ConversationSummary(
                     sourceKey = key.first,
                     groupValue = key.second,
-                    title = latest.groupValue(),
+                    title = title,
                     sourceLabel = latest.sourceLabel,
                     packageName = latest.sourcePackageName,
                     latestContent = latest.content,
@@ -173,6 +188,7 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectTab(tab: HubTab) {
         _tab.value = tab
+        _sourceFilter.value = null
         _conversationFilter.value = null
     }
 
