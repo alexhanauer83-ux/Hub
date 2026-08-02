@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -273,7 +274,9 @@ fun HubScreen(
                     onOpenPeek = { peekMessage = it },
                     selectionActive = selection.active,
                     selectedIds = selection.ids,
-                    onToggleSelect = viewModel::toggleSelected
+                    onToggleSelect = viewModel::toggleSelected,
+                    // Datums-Trenner im Chatverlauf (Konversations-Detail).
+                    showDateDividers = state.conversationFilter != null
                 )
             }
         }
@@ -407,7 +410,8 @@ private fun MessageList(
     onOpenPeek: (MessageEntity) -> Unit,
     selectionActive: Boolean,
     selectedIds: Set<String>,
-    onToggleSelect: (String) -> Unit
+    onToggleSelect: (String) -> Unit,
+    showDateDividers: Boolean = false
 ) {
     if (messages.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -423,7 +427,14 @@ private fun MessageList(
     }
 
     LazyColumn(Modifier.fillMaxSize()) {
-        items(messages, key = { it.id }) { message ->
+        itemsIndexed(messages, key = { _, m -> m.id }) { index, message ->
+            // Datums-Trenner (nur im Chatverlauf): über der ersten Nachricht eines Tages.
+            if (showDateDividers) {
+                val prev = messages.getOrNull(index - 1)
+                if (prev == null || !isSameDay(prev.timestamp, message.timestamp)) {
+                    DateDivider(message.timestamp)
+                }
+            }
             SwipeableMessageRow(
                 message = message,
                 isArchiveView = isArchiveView,
@@ -442,6 +453,40 @@ private fun MessageList(
             )
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         }
+    }
+}
+
+@Composable
+private fun DateDivider(timestamp: Long) {
+    Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+        androidx.compose.material3.Surface(
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)
+        ) {
+            Text(
+                text = dateLabel(timestamp),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            )
+        }
+    }
+}
+
+private fun isSameDay(a: Long, b: Long): Boolean {
+    val ca = java.util.Calendar.getInstance().apply { timeInMillis = a }
+    val cb = java.util.Calendar.getInstance().apply { timeInMillis = b }
+    return ca.get(java.util.Calendar.YEAR) == cb.get(java.util.Calendar.YEAR) &&
+        ca.get(java.util.Calendar.DAY_OF_YEAR) == cb.get(java.util.Calendar.DAY_OF_YEAR)
+}
+
+private fun dateLabel(timestamp: Long): String {
+    val now = System.currentTimeMillis()
+    return when {
+        isSameDay(timestamp, now) -> "Heute"
+        isSameDay(timestamp, now - 24L * 60 * 60 * 1000) -> "Gestern"
+        else -> java.text.SimpleDateFormat("EEE, dd.MM.yyyy", java.util.Locale.GERMANY)
+            .format(java.util.Date(timestamp))
     }
 }
 
