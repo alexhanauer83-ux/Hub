@@ -38,7 +38,11 @@ class ConnectorSyncService : Service() {
         val registry = ServiceLocator.connectorRegistry(this)
         if (ServiceLocator.telegramConnector(this).isConfigured()) registry.start(TelegramBotConnector.SOURCE_KEY)
         if (ServiceLocator.matrixConnector(this).isConfigured()) registry.start(MatrixConnector.SOURCE_KEY)
-        if (ServiceLocator.imapConnector(this).isConfigured()) registry.start(ImapConnector.SOURCE_KEY)
+        // Jedes eingerichtete IMAP-Konto registrieren und starten.
+        ServiceLocator.imapAccountIds(this).forEach { accountId ->
+            ServiceLocator.imapConnector(this, accountId) // registriert in der Registry
+            registry.start(ImapConnector.sourceKeyFor(accountId))
+        }
         // START_STICKY: Nach einem Kill durch das System den Service neu starten.
         return START_STICKY
     }
@@ -89,7 +93,7 @@ class ConnectorSyncService : Service() {
         fun anyConnectorConfigured(context: Context): Boolean =
             ServiceLocator.telegramConnector(context).isConfigured() ||
                 ServiceLocator.matrixConnector(context).isConfigured() ||
-                ServiceLocator.imapConnector(context).isConfigured()
+                ServiceLocator.imapAccountIds(context).isNotEmpty()
 
         /** Startet den Service (nur wenn Hintergrund-Empfang aktiv und ein Connector eingerichtet). */
         fun startIfEnabled(context: Context) {

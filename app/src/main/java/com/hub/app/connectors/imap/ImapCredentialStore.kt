@@ -5,9 +5,9 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
 /**
- * Speichert die IMAP-Zugangsdaten verschlüsselt (Keystore-Master-Key). Ein E-Mail-Passwort
- * ist so sensibel wie jedes andere Passwort und gehört nicht in normale SharedPreferences.
- * Einzel-Konto-Variante (Mehrkonten wäre eine spätere Erweiterung).
+ * Speichert IMAP-Zugangsdaten **mehrerer** Konten verschlüsselt (Keystore-Master-Key).
+ * Jedes Konto wird über seine [ImapConfig.accountId] adressiert; die Feld-Keys sind mit
+ * der accountId präfigiert, ein StringSet hält die Liste der Konten.
  */
 class ImapCredentialStore(context: Context) {
 
@@ -22,42 +22,61 @@ class ImapCredentialStore(context: Context) {
         )
     }
 
-    fun load(): ImapConfig? {
-        val host = prefs.getString(KEY_HOST, null) ?: return null
-        val user = prefs.getString(KEY_USER, null) ?: return null
-        val pass = prefs.getString(KEY_PASS, null) ?: return null
+    fun accountIds(): Set<String> = prefs.getStringSet(KEY_ACCOUNTS, emptySet())?.toSet() ?: emptySet()
+
+    fun isConfigured(): Boolean = accountIds().isNotEmpty()
+
+    fun load(accountId: String): ImapConfig? {
+        val host = prefs.getString(k(accountId, HOST), null) ?: return null
+        val user = prefs.getString(k(accountId, USER), null) ?: return null
+        val pass = prefs.getString(k(accountId, PASS), null) ?: return null
         return ImapConfig(
-            displayName = prefs.getString(KEY_LABEL, user) ?: user,
+            accountId = accountId,
+            displayName = prefs.getString(k(accountId, LABEL), user) ?: user,
             host = host,
-            port = prefs.getInt(KEY_PORT, 993),
+            port = prefs.getInt(k(accountId, PORT), 993),
             username = user,
             password = pass,
-            useSsl = prefs.getBoolean(KEY_SSL, true)
+            useSsl = prefs.getBoolean(k(accountId, SSL), true)
         )
     }
 
+    fun loadAll(): List<ImapConfig> = accountIds().mapNotNull { load(it) }
+
     fun save(config: ImapConfig) {
         prefs.edit()
-            .putString(KEY_HOST, config.host)
-            .putInt(KEY_PORT, config.port)
-            .putString(KEY_USER, config.username)
-            .putString(KEY_PASS, config.password)
-            .putBoolean(KEY_SSL, config.useSsl)
-            .putString(KEY_LABEL, config.displayName)
+            .putStringSet(KEY_ACCOUNTS, accountIds() + config.accountId)
+            .putString(k(config.accountId, HOST), config.host)
+            .putInt(k(config.accountId, PORT), config.port)
+            .putString(k(config.accountId, USER), config.username)
+            .putString(k(config.accountId, PASS), config.password)
+            .putBoolean(k(config.accountId, SSL), config.useSsl)
+            .putString(k(config.accountId, LABEL), config.displayName)
             .apply()
     }
 
-    fun isConfigured(): Boolean = prefs.contains(KEY_HOST)
+    fun remove(accountId: String) {
+        prefs.edit()
+            .putStringSet(KEY_ACCOUNTS, accountIds() - accountId)
+            .remove(k(accountId, HOST))
+            .remove(k(accountId, PORT))
+            .remove(k(accountId, USER))
+            .remove(k(accountId, PASS))
+            .remove(k(accountId, SSL))
+            .remove(k(accountId, LABEL))
+            .apply()
+    }
 
-    fun clear() = prefs.edit().clear().apply()
+    private fun k(accountId: String, field: String) = "$accountId::$field"
 
     private companion object {
         const val PREFS_NAME = "imap_credentials"
-        const val KEY_HOST = "host"
-        const val KEY_PORT = "port"
-        const val KEY_USER = "user"
-        const val KEY_PASS = "pass"
-        const val KEY_SSL = "ssl"
-        const val KEY_LABEL = "label"
+        const val KEY_ACCOUNTS = "accounts"
+        const val HOST = "host"
+        const val PORT = "port"
+        const val USER = "user"
+        const val PASS = "pass"
+        const val SSL = "ssl"
+        const val LABEL = "label"
     }
 }

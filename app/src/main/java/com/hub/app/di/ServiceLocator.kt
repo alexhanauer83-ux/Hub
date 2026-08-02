@@ -24,7 +24,8 @@ object ServiceLocator {
     @Volatile private var connectorRegistry: ConnectorRegistry? = null
     @Volatile private var telegramConnector: TelegramBotConnector? = null
     @Volatile private var matrixConnector: MatrixConnector? = null
-    @Volatile private var imapConnector: ImapConnector? = null
+    // Ein IMAP-Connector pro Konto (accountId -> Connector).
+    private val imapConnectors = java.util.concurrent.ConcurrentHashMap<String, ImapConnector>()
 
     fun telegramConnector(context: Context): TelegramBotConnector =
         telegramConnector ?: synchronized(this) {
@@ -38,11 +39,22 @@ object ServiceLocator {
                 .also { matrixConnector = it }
         }
 
-    fun imapConnector(context: Context): ImapConnector =
-        imapConnector ?: synchronized(this) {
-            imapConnector ?: ImapConnector(context.applicationContext)
-                .also { imapConnector = it }
+    /** Liefert (und cached) den IMAP-Connector für ein Konto und registriert ihn in der Registry. */
+    fun imapConnector(context: Context, accountId: String): ImapConnector =
+        imapConnectors.getOrPut(accountId) {
+            ImapConnector(context.applicationContext, accountId).also {
+                connectorRegistry(context).register(it)
+            }
         }
+
+    /** Alle eingerichteten IMAP-Konten (accountIds) laut Credential-Store. */
+    fun imapAccountIds(context: Context): Set<String> =
+        com.hub.app.connectors.imap.ImapCredentialStore(context.applicationContext).accountIds()
+
+    /** Registriert alle gespeicherten IMAP-Konten in der Registry (idempotent). */
+    fun registerImapConnectors(context: Context) {
+        imapAccountIds(context).forEach { imapConnector(context, it) }
+    }
 
     /**
      * Registriert alle API-Connectoren. Der Notification-Listener taucht hier bewusst
@@ -53,7 +65,6 @@ object ServiceLocator {
             connectorRegistry ?: ConnectorRegistry(messageRepository(context)).apply {
                 register(telegramConnector(context))
                 register(matrixConnector(context))
-                register(imapConnector(context))
             }.also { connectorRegistry = it }
         }
 

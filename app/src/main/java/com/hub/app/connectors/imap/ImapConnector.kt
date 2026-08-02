@@ -40,17 +40,19 @@ import javax.mail.internet.InternetAddress
  */
 class ImapConnector(
     context: Context,
+    /** Konto-Kennung; bestimmt sourceKey und welche gespeicherten Zugangsdaten gelten. */
+    private val accountId: String,
     private val credentials: ImapCredentialStore = ImapCredentialStore(context)
 ) : MessageSource {
 
-    override val sourceKey: String = SOURCE_KEY
-    override val displayName: String = "E-Mail"
+    override val sourceKey: String = sourceKeyFor(accountId)
+    override val displayName: String = credentials.load(accountId)?.displayName ?: "E-Mail"
     override val quality: SourceQuality = SourceQuality.API_NATIVE
     override val capabilities: Set<SourceCapability> = setOf(SourceCapability.FULL_HISTORY)
 
     private var store: Store? = null
 
-    fun isConfigured(): Boolean = credentials.isConfigured()
+    fun isConfigured(): Boolean = credentials.load(accountId) != null
 
     /** Prüft die Zugangsdaten per Testverbindung und speichert sie bei Erfolg. */
     suspend fun signIn(config: ImapConfig): Result<Unit> = withContext(Dispatchers.IO) {
@@ -63,11 +65,11 @@ class ImapConnector(
     fun signOut() {
         runCatching { store?.close() }
         store = null
-        credentials.clear()
+        credentials.remove(accountId)
     }
 
     override suspend fun start(ingestSink: MessageIngestSink) {
-        val config = credentials.load()
+        val config = credentials.load(accountId)
         if (config == null) {
             Log.i(TAG, "IMAP nicht eingerichtet – Connector startet nicht.")
             return
@@ -179,7 +181,8 @@ class ImapConnector(
     }
 
     companion object {
-        const val SOURCE_KEY = "imap"
+        const val SOURCE_KEY_PREFIX = "imap:"
+        fun sourceKeyFor(accountId: String) = "$SOURCE_KEY_PREFIX$accountId"
         private const val TAG = "ImapConnector"
         private const val POLL_INTERVAL_MILLIS = 5 * 60 * 1000L
         private const val FETCH_WINDOW = 50
@@ -194,6 +197,8 @@ class ImapConnector(
  * ablegen und nur fuer die Dauer der Verbindung entschluesseln.
  */
 data class ImapConfig(
+    /** Stabile Konto-Kennung (z. B. die E-Mail-Adresse); Teil des sourceKey "imap:<id>". */
+    val accountId: String,
     val displayName: String,
     val host: String,
     val port: Int = 993,
