@@ -63,7 +63,7 @@ class TelegramBotConnector(
 
     /** Onboarding-Schritt: Token prüfen und bei Erfolg speichern. */
     suspend fun signIn(botToken: String): Result<String> = runCatching {
-        val response = api.getMe(botToken)
+        val response = api.getMe(TelegramApi.urlFor(botToken, "getMe"))
         val user = response.result
         if (!response.ok || user == null) {
             throw IllegalArgumentException(
@@ -93,7 +93,7 @@ class TelegramBotConnector(
             try {
                 val offset = credentials.lastUpdateId.takeIf { it > 0 }?.let { it + 1 }
                 val response = api.getUpdates(
-                    token = token,
+                    url = TelegramApi.urlFor(token, "getUpdates"),
                     offset = offset,
                     timeoutSeconds = LONG_POLL_TIMEOUT_SECONDS
                 )
@@ -137,7 +137,7 @@ class TelegramBotConnector(
         val chatId = target.conversationId?.toLongOrNull()
             ?: throw IllegalArgumentException("Ungültige Chat-ID")
 
-        val response = api.sendMessage(token, chatId, text)
+        val response = api.sendMessage(TelegramApi.urlFor(token, "sendMessage"), chatId, text)
         if (!response.ok) {
             throw IllegalStateException(response.description ?: "Senden fehlgeschlagen")
         }

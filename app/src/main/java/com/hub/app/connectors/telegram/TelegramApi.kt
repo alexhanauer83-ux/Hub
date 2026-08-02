@@ -4,8 +4,8 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import retrofit2.http.GET
 import retrofit2.http.POST
-import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Url
 
 /**
  * Telegram **Bot API** (nicht MTProto/TDLib).
@@ -25,27 +25,32 @@ interface TelegramApi {
      * Long Polling. `timeout` hält die Verbindung serverseitig offen, bis etwas passiert –
      * deutlich sparsamer als kurzes Poll-Intervall im Sekundentakt.
      */
-    @GET("bot{token}/getUpdates")
+    // Volle URL per @Url: Das Token enthält einen Doppelpunkt (<id>:<hash>), der als
+    // Pfad-Segment eine "Malformed URL" verursacht (OkHttp liest ihn als Schema). Die
+    // fertige URL baut der Connector mit [urlFor].
+    @GET
     suspend fun getUpdates(
-        @Path("token") token: String,
+        @Url url: String,
         @Query("offset") offset: Long?,
         @Query("timeout") timeoutSeconds: Int = 30,
         @Query("allowed_updates") allowedUpdates: String = "[\"message\"]"
     ): TelegramResponse<List<TelegramUpdate>>
 
-    @POST("bot{token}/sendMessage")
+    @POST
     suspend fun sendMessage(
-        @Path("token") token: String,
+        @Url url: String,
         @Query("chat_id") chatId: Long,
         @Query("text") text: String
     ): TelegramResponse<TelegramMessage>
 
     /** Dient als Login-/Token-Validierung im Onboarding. */
-    @GET("bot{token}/getMe")
-    suspend fun getMe(@Path("token") token: String): TelegramResponse<TelegramUser>
+    @GET
+    suspend fun getMe(@Url url: String): TelegramResponse<TelegramUser>
 
     companion object {
         const val BASE_URL = "https://api.telegram.org/"
+        /** Baut die vollständige Bot-API-URL: https://api.telegram.org/bot<token>/<method> */
+        fun urlFor(token: String, method: String) = "${BASE_URL}bot$token/$method"
     }
 }
 
