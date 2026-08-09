@@ -16,8 +16,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -94,6 +96,8 @@ fun HubScreen(
     var emailMessage by remember { mutableStateOf<MessageEntity?>(null) }
     var overflowOpen by remember { mutableStateOf(false) }
     var composeSheetOpen by remember { mutableStateOf(false) }
+    // Scrollzustand des Feeds – der „Neu"-FAB kollabiert beim Scrollen zum Icon (modern).
+    val listState = rememberLazyListState()
 
     // E-Mails bekommen eine eigene, schöne Lese-Ansicht statt Antwort-/App-Weg.
     val openEmail: (MessageEntity) -> Unit = { msg ->
@@ -263,6 +267,8 @@ fun HubScreen(
                 if (!selection.active && !state.isSearching && state.conversationFilter == null) {
                     ExtendedFloatingActionButton(
                         onClick = { composeSheetOpen = true },
+                        // Voll ausgeschrieben ganz oben, kompakt sobald gescrollt wird.
+                        expanded = listState.firstVisibleItemIndex == 0,
                         icon = { Icon(Icons.Default.Edit, contentDescription = "Neue Nachricht") },
                         text = { Text("Neu") }
                     )
@@ -310,6 +316,7 @@ fun HubScreen(
                 if (state.showConversations) {
                     ConversationList(
                         conversations = state.conversations,
+                        listState = listState,
                         onOpen = viewModel::openConversation
                     )
                     return@Column
@@ -317,6 +324,7 @@ fun HubScreen(
 
                 MessageList(
                     messages = state.messages,
+                    listState = listState,
                     isArchiveView = state.tab == HubTab.ARCHIV && state.sourceFilter == null && state.conversationFilter == null,
                     emptyHint = when {
                         state.conversationFilter != null -> "Keine Nachrichten in dieser Unterhaltung"
@@ -546,6 +554,7 @@ private fun AccessBanner(onOpenOnboarding: () -> Unit) {
 @Composable
 private fun ConversationList(
     conversations: List<ConversationSummary>,
+    listState: LazyListState,
     onOpen: (ConversationRef) -> Unit
 ) {
     if (conversations.isEmpty()) {
@@ -560,7 +569,7 @@ private fun ConversationList(
         }
         return
     }
-    LazyColumn(Modifier.fillMaxSize()) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState) {
         items(conversations, key = { it.sourceKey + "/" + it.groupValue }) { conversation ->
             // Sanftes Verschieben, wenn Unterhaltungen dazukommen/wegfallen (moderne Motion).
             Column(Modifier.animateItemPlacement()) {
@@ -575,6 +584,7 @@ private fun ConversationList(
 @Composable
 private fun MessageList(
     messages: List<MessageEntity>,
+    listState: LazyListState,
     isArchiveView: Boolean,
     emptyHint: String,
     onOpen: (MessageEntity) -> Unit,
@@ -601,7 +611,7 @@ private fun MessageList(
         return
     }
 
-    LazyColumn(Modifier.fillMaxSize()) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState) {
         itemsIndexed(messages, key = { _, m -> m.id }) { index, message ->
             // Sanftes Verschieben, wenn Zeilen dazukommen/wegfallen (gelesen/archiviert) –
             // moderne Motion nach Material 3.
