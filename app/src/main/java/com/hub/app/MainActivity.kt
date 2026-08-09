@@ -59,7 +59,8 @@ class MainActivity : FragmentActivity() {
 
         setContent {
             val themeMode by ThemeSettings.mode.collectAsStateWithLifecycle()
-            HubTheme(themeMode = themeMode) {
+            val dynamicColor by ThemeSettings.dynamicColor.collectAsStateWithLifecycle()
+            HubTheme(themeMode = themeMode, dynamicColor = dynamicColor) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     var locked by remember { mutableStateOf(appLock.requiresUnlock()) }
 

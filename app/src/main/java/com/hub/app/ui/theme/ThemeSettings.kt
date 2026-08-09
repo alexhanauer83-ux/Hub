@@ -26,15 +26,34 @@ class ThemeSettings(context: Context) {
             _mode.value = value
         }
 
-    /** Lädt den gespeicherten Wert in den geteilten Flow (beim App-Start aufrufen). */
-    fun sync() { _mode.value = mode }
+    /**
+     * Material You / dynamische Farben: Auf Android 12+ übernimmt die App die Farben des
+     * System-Hintergrunds. Standard: an (moderne Optik); Fallback ist die Marken-Palette.
+     */
+    var dynamicColor: Boolean
+        get() = prefs.getBoolean(KEY_DYNAMIC, true)
+        set(value) {
+            prefs.edit().putBoolean(KEY_DYNAMIC, value).apply()
+            _dynamicColor.value = value
+        }
+
+    /** Lädt die gespeicherten Werte in die geteilten Flows (beim App-Start aufrufen). */
+    fun sync() {
+        _mode.value = mode
+        _dynamicColor.value = dynamicColor
+    }
 
     companion object {
         private const val PREFS_NAME = "hub_theme"
         private const val KEY_MODE = "mode"
+        private const val KEY_DYNAMIC = "dynamic_color"
 
         private val _mode = MutableStateFlow(ThemeMode.SYSTEM)
         /** Geteilte Quelle der Wahrheit für die aktuell aktive Darstellung. */
         val mode: StateFlow<ThemeMode> = _mode.asStateFlow()
+
+        private val _dynamicColor = MutableStateFlow(true)
+        /** Geteilte Quelle der Wahrheit für Material You (dynamische Farben). */
+        val dynamicColor: StateFlow<Boolean> = _dynamicColor.asStateFlow()
     }
 }

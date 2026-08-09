@@ -1,11 +1,15 @@
 package com.hub.app.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 
 private val HubDarkColors = darkColorScheme(
     primary = HubAccent,
@@ -43,6 +47,7 @@ private val HubLightColors = lightColorScheme(
 @Composable
 fun HubTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val useDarkTheme = when (themeMode) {
@@ -50,8 +55,17 @@ fun HubTheme(
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
+    val context = LocalContext.current
+    // Material You: auf Android 12+ die System-/Wallpaper-Farben übernehmen (moderne Optik),
+    // sonst die feste Marken-Palette.
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
+            if (useDarkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        useDarkTheme -> HubDarkColors
+        else -> HubLightColors
+    }
     MaterialTheme(
-        colorScheme = if (useDarkTheme) HubDarkColors else HubLightColors,
+        colorScheme = colorScheme,
         typography = HubTypography,
         content = content
     )

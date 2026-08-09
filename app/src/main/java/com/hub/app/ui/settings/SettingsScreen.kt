@@ -64,6 +64,7 @@ fun SettingsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()
     val themeMode by com.hub.app.ui.theme.ThemeSettings.mode.collectAsStateWithLifecycle()
+    val dynamicColor by com.hub.app.ui.theme.ThemeSettings.dynamicColor.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // Beim Öffnen der Einstellungen einmalig automatisch nach einem Update suchen.
@@ -137,6 +138,12 @@ fun SettingsScreen(
                     current = themeMode,
                     onSelect = { com.hub.app.ui.theme.ThemeSettings(context).mode = it }
                 )
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    DynamicColorRow(
+                        enabled = dynamicColor,
+                        onToggle = { com.hub.app.ui.theme.ThemeSettings(context).dynamicColor = it }
+                    )
+                }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
                 SectionHeader("Sicherheit")
@@ -390,6 +397,24 @@ private fun NotificationReplacementSection(
                 color = MaterialTheme.colorScheme.error
             )
         }
+    }
+}
+
+@Composable
+private fun DynamicColorRow(enabled: Boolean, onToggle: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Material You", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Farben aus dem System-Hintergrund übernehmen (Android 12+).",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = enabled, onCheckedChange = onToggle)
     }
 }
 
