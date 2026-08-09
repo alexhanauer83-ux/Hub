@@ -59,7 +59,8 @@ data class ConversationSummary(
     val total: Int,
     val unread: Int,
     val isRedacted: Boolean,
-    val hasImage: Boolean
+    val hasImage: Boolean,
+    val pinned: Boolean = false
 ) {
     val ref get() = ConversationRef(sourceKey, groupValue, title)
 }
@@ -171,13 +172,31 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
     // Gruppierte Übersicht – abhängig vom Filter: Posteingang ODER die gewählte Quelle
     // (Matrix/Telegram/E-Mail-Reiter) zu Unterhaltungen zusammengefasst.
     @OptIn(ExperimentalCoroutinesApi::class)
-    private val conversations = filter.flatMapLatest { f ->
+    private val conversationsRaw = filter.flatMapLatest { f ->
         when {
             !f.searchQuery.isNullOrBlank() || f.conversationFilter != null -> flowOf(emptyList())
             f.sourceFilter != null -> repository.observeBySource(f.sourceFilter).map { groupIntoConversations(it) }
             f.tab == HubTab.POSTEINGANG -> repository.observeInbox().map { groupIntoConversations(it) }
             else -> flowOf(emptyList())
         }
+    }
+
+    private val _pinnedConversations = MutableStateFlow(notificationSettings.pinnedConversations())
+
+    // Angepinnte Konversationen nach oben, der Rest nach Zeit – reagiert live auf Pin-Änderungen.
+    private val conversations = combine(conversationsRaw, _pinnedConversations) { convos, _ ->
+        convos
+            .map { it.copy(pinned = notificationSettings.isConversationPinned(it.sourceKey, it.groupValue)) }
+            .sortedWith(
+                compareByDescending<ConversationSummary> { it.pinned }.thenByDescending { it.latestTimestamp }
+            )
+    }
+
+    /** Pinnt eine Konversation an die Spitze bzw. löst sie wieder (wirkt in der Sortierung oben). */
+    fun toggleConversationPin(sourceKey: String, groupValue: String) {
+        val pin = !notificationSettings.isConversationPinned(sourceKey, groupValue)
+        notificationSettings.setConversationPinned(sourceKey, groupValue, pin)
+        _pinnedConversations.value = notificationSettings.pinnedConversations()
     }
 
     private val sourceCounts = repository.observeSourceCounts()

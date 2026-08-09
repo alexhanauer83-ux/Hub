@@ -1,7 +1,8 @@
 package com.hub.app.ui.hub
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,7 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.Badge
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,10 +34,12 @@ import java.util.Locale
  * Eine Unterhaltung in der gruppierten Übersicht: neueste Nachricht als Vorschau, Anzahl
  * ungelesener Nachrichten als Badge, Quellenfarbe als Punkt. Tippen öffnet den Verlauf.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ConversationRow(
     conversation: ConversationSummary,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val unread = conversation.unread > 0
@@ -41,7 +47,8 @@ fun ConversationRow(
         modifier = modifier
             .fillMaxWidth()
             .background(colorForSource(conversation.sourceKey).copy(alpha = SOURCE_TINT_ALPHA))
-            .clickable(onClick = onClick)
+            // Kurz = öffnen, lang = anpinnen/lösen (Haptik kommt automatisch).
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.Top
     ) {
@@ -63,6 +70,15 @@ fun ConversationRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
+                if (conversation.pinned) {
+                    Spacer(Modifier.width(6.dp))
+                    Icon(
+                        Icons.Filled.PushPin,
+                        contentDescription = "Angepinnt",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
                 Spacer(Modifier.weight(1f))
                 Text(
                     text = formatTimestamp(conversation.latestTimestamp),

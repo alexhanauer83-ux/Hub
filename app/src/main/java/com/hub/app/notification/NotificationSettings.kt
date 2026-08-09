@@ -108,6 +108,21 @@ class NotificationSettings(context: Context) {
         prefs.edit().putStringSet(KEY_MUTED_CONV, updated).apply()
     }
 
+    /** Angepinnte Konversationen (Schlüssel = sourceKey + Gruppenwert) – bleiben oben in der Liste. */
+    fun pinnedConversations(): Set<String> =
+        prefs.getStringSet(KEY_PINNED_CONV, emptySet())?.toSet() ?: emptySet()
+
+    fun isConversationPinned(sourceKey: String, groupValue: String): Boolean =
+        conversationKey(sourceKey, groupValue) in pinnedConversations()
+
+    fun setConversationPinned(sourceKey: String, groupValue: String, pinned: Boolean) {
+        val key = conversationKey(sourceKey, groupValue)
+        val updated = pinnedConversations().toMutableSet().apply {
+            if (pinned) add(key) else remove(key)
+        }
+        prefs.edit().putStringSet(KEY_PINNED_CONV, updated).apply()
+    }
+
     // \u0001 als Trenner: kommt in sourceKey/Gruppenwert praktisch nicht vor.
     private fun conversationKey(sourceKey: String, groupValue: String) = "$sourceKey\u0001$groupValue"
 
@@ -116,6 +131,7 @@ class NotificationSettings(context: Context) {
         const val KEY_REPLACE = "replace_other_notifications"
         const val KEY_MUTED = "muted_sources"
         const val KEY_MUTED_CONV = "muted_conversations"
+        const val KEY_PINNED_CONV = "pinned_conversations"
         const val KEY_BG_SYNC = "background_sync"
         const val KEY_PINNED = "pinned_sources"
         const val KEY_GESTURE_HINT = "gesture_hint_dismissed"

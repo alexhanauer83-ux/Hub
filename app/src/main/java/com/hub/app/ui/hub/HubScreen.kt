@@ -317,7 +317,8 @@ fun HubScreen(
                     ConversationList(
                         conversations = state.conversations,
                         listState = listState,
-                        onOpen = viewModel::openConversation
+                        onOpen = viewModel::openConversation,
+                        onTogglePin = { viewModel.toggleConversationPin(it.sourceKey, it.groupValue) }
                     )
                     return@Column
                 }
@@ -554,7 +555,8 @@ private fun AccessBanner(onOpenOnboarding: () -> Unit) {
 private fun ConversationList(
     conversations: List<ConversationSummary>,
     listState: LazyListState,
-    onOpen: (ConversationRef) -> Unit
+    onOpen: (ConversationRef) -> Unit,
+    onTogglePin: (ConversationSummary) -> Unit
 ) {
     if (conversations.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -572,7 +574,11 @@ private fun ConversationList(
         items(conversations, key = { it.sourceKey + "/" + it.groupValue }) { conversation ->
             // Sanftes Verschieben, wenn Unterhaltungen dazukommen/wegfallen (moderne Motion).
             Column(Modifier.animateItem()) {
-                ConversationRow(conversation = conversation, onClick = { onOpen(conversation.ref) })
+                ConversationRow(
+                    conversation = conversation,
+                    onClick = { onOpen(conversation.ref) },
+                    onLongClick = { onTogglePin(conversation) }
+                )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             }
         }
