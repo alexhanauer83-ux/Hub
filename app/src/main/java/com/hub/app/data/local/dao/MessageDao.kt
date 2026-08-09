@@ -158,6 +158,10 @@ interface MessageDao {
     @Query("DELETE FROM messages WHERE id IN (:ids)")
     suspend fun deleteIn(ids: List<String>)
 
+    /** Auto-Aufräumen: löscht gelesene Nachrichten älter als [cutoff] (ungelesene bleiben). */
+    @Query("DELETE FROM messages WHERE isRead = 1 AND timestamp < :cutoff")
+    suspend fun deleteReadOlderThan(cutoff: Long)
+
     // --- Snooze ---
     @Query("UPDATE messages SET snoozeUntil = :until WHERE id = :id")
     suspend fun snooze(id: String, until: Long)

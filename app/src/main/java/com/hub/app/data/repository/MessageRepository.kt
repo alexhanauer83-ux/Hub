@@ -123,6 +123,16 @@ class MessageRepository(
     suspend fun archiveIn(ids: List<String>) = messageDao.archiveIn(ids)
     suspend fun unarchiveIn(ids: List<String>) = messageDao.unarchiveIn(ids)
     suspend fun deleteIn(ids: List<String>) = messageDao.deleteIn(ids)
+    /**
+     * Auto-Aufräumen gegen unbegrenztes Feed-Wachstum: löscht gelesene Nachrichten, die älter
+     * als [retentionDays] Tage sind. Ungelesene bleiben immer. [retentionDays] <= 0 = aus.
+     */
+    suspend fun pruneRead(retentionDays: Int) {
+        if (retentionDays <= 0) return
+        val cutoff = System.currentTimeMillis() - retentionDays.toLong() * 24 * 60 * 60 * 1000
+        messageDao.deleteReadOlderThan(cutoff)
+    }
+
     suspend fun snooze(id: String, until: Long) = messageDao.snooze(id, until)
     suspend fun clearExpiredSnoozes(now: Long) = messageDao.clearExpiredSnoozes(now)
     suspend fun nextSnoozeDue(): Long? = messageDao.nextSnoozeDue()

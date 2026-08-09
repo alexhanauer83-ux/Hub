@@ -45,7 +45,8 @@ data class SettingsUiState(
     val hasConnector: Boolean = false,
     val quietHoursEnabled: Boolean = false,
     val quietHoursStart: Int = 22 * 60,
-    val quietHoursEnd: Int = 7 * 60
+    val quietHoursEnd: Int = 7 * 60,
+    val retentionDays: Int = 7
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -125,8 +126,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         hasConnector = com.hub.app.connectors.ConnectorSyncService.anyConnectorConfigured(getApplication()),
         quietHoursEnabled = notificationSettings.quietHoursEnabled,
         quietHoursStart = notificationSettings.quietHoursStartMinutes,
-        quietHoursEnd = notificationSettings.quietHoursEndMinutes
+        quietHoursEnd = notificationSettings.quietHoursEndMinutes,
+        retentionDays = notificationSettings.retentionDays
     )
+
+    /** Setzt die Aufbewahrungsdauer und räumt sofort entsprechend auf. */
+    fun setRetentionDays(days: Int) {
+        notificationSettings.retentionDays = days
+        refreshSystemState()
+        viewModelScope.launch { repository.pruneRead(days) }
+    }
 
     fun setQuietHoursEnabled(enabled: Boolean) {
         notificationSettings.quietHoursEnabled = enabled

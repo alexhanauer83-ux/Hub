@@ -26,6 +26,15 @@ class NotificationSettings(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_BG_SYNC, value).apply()
 
     /**
+     * Aufbewahrung **gelesener** Nachrichten in Tagen – ältere werden automatisch gelöscht,
+     * damit der Feed nicht unbegrenzt wächst. Ungelesene bleiben immer. 0 = unbegrenzt (aus).
+     * Standard: 7 Tage.
+     */
+    var retentionDays: Int
+        get() = prefs.getInt(KEY_RETENTION_DAYS, 7)
+        set(value) = prefs.edit().putInt(KEY_RETENTION_DAYS, value).apply()
+
+    /**
      * Ob der einmalige Gesten-Hinweis im Posteingang bereits weggetippt wurde. Startet auf
      * false, damit neue Nutzer die Wisch-/Tipp-Gesten überhaupt entdecken.
      */
@@ -135,6 +144,7 @@ class NotificationSettings(context: Context) {
         const val KEY_BG_SYNC = "background_sync"
         const val KEY_PINNED = "pinned_sources"
         const val KEY_GESTURE_HINT = "gesture_hint_dismissed"
+        const val KEY_RETENTION_DAYS = "retention_days"
         const val KEY_QUIET_ENABLED = "quiet_hours_enabled"
         const val KEY_QUIET_START = "quiet_hours_start"
         const val KEY_QUIET_END = "quiet_hours_end"

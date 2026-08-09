@@ -182,6 +182,13 @@ fun SettingsScreen(
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
+                SectionHeader("Aufbewahrung")
+                RetentionSection(
+                    current = state.retentionDays,
+                    onSelect = viewModel::setRetentionDays
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
                 SectionHeader("Direkte Anbindungen")
                 Text(
                     "Über die offene API angebundene Dienste liefern den vollen Verlauf und " +
@@ -415,6 +422,32 @@ private fun DynamicColorRow(enabled: Boolean, onToggle: (Boolean) -> Unit) {
             )
         }
         Switch(checked = enabled, onCheckedChange = onToggle)
+    }
+}
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun RetentionSection(current: Int, onSelect: (Int) -> Unit) {
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        Text(
+            "Gelesene Nachrichten, die älter als die gewählte Dauer sind, werden automatisch " +
+                "gelöscht – so wächst der Feed nicht endlos. Ungelesene bleiben immer erhalten.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+        val options = listOf(7 to "7 Tage", 30 to "30 Tage", 90 to "90 Tage", 0 to "Unbegrenzt")
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+        ) {
+            options.forEach { (days, label) ->
+                androidx.compose.material3.FilterChip(
+                    selected = current == days,
+                    onClick = { onSelect(days) },
+                    label = { Text(label) }
+                )
+            }
+        }
     }
 }
 

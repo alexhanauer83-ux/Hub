@@ -15,6 +15,8 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.hub.app.security.AppLockManager
 import com.hub.app.ui.lock.AppLockScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -56,6 +58,12 @@ class MainActivity : FragmentActivity() {
         ThemeSettings(this).sync()
         // Hintergrund-Empfang aus dem Vordergrund starten (hier ist der FGS-Start erlaubt).
         com.hub.app.connectors.ConnectorSyncService.startIfEnabled(this)
+
+        // Feed schlank halten: alte gelesene Nachrichten gemäß Aufbewahrungsdauer aufräumen.
+        lifecycleScope.launch {
+            com.hub.app.di.ServiceLocator.messageRepository(this@MainActivity)
+                .pruneRead(com.hub.app.notification.NotificationSettings(this@MainActivity).retentionDays)
+        }
 
         setContent {
             val themeMode by ThemeSettings.mode.collectAsStateWithLifecycle()
