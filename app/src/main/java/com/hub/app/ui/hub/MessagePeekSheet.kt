@@ -2,6 +2,8 @@ package com.hub.app.ui.hub
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.hub.app.data.local.entity.MessageEntity
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -43,7 +46,7 @@ import java.util.Locale
  * wichtigsten Aktionen, **ohne** die Quell-App zu öffnen – das war der Kern des
  * BlackBerry-Hub-Gefühls. Quick Reply wird in Phase 4 hier ergänzt.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun MessagePeekSheet(
     message: MessageEntity,
@@ -157,13 +160,19 @@ fun MessagePeekSheet(
                 Text("Mehrere auswählen")
             }
 
-            // Snooze: kurz zurückstellen, taucht danach wieder auf.
+            // Snooze: kurz zurückstellen, taucht danach wieder auf. Neben festen Dauern gibt es
+            // „smarte" Zeitpunkte (heute Abend / morgen früh / nächste Woche) wie beim Hub-Vorbild.
             Spacer(Modifier.height(4.dp))
             Text("Später erinnern", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = { onSnooze(60 * 60 * 1000L) }) { Text("1 Std") }
-                TextButton(onClick = { onSnooze(4 * 60 * 60 * 1000L) }) { Text("4 Std") }
-                TextButton(onClick = { onSnooze(24 * 60 * 60 * 1000L) }) { Text("1 Tag") }
+                TextButton(onClick = { onSnooze(3 * 60 * 60 * 1000L) }) { Text("3 Std") }
+                // „Heute Abend" nur anbieten, wenn 18 Uhr noch nicht vorbei ist.
+                if (millisUntilTonight() > 0L) {
+                    TextButton(onClick = { onSnooze(millisUntilTonight()) }) { Text("Heute Abend") }
+                }
+                TextButton(onClick = { onSnooze(millisUntilTomorrowMorning()) }) { Text("Morgen früh") }
+                TextButton(onClick = { onSnooze(millisUntilNextWeek()) }) { Text("Nächste Woche") }
             }
 
             if (canQuickReply) {
@@ -198,3 +207,30 @@ private fun PeekAction(
 
 private fun fullTimestamp(timestamp: Long): String =
     SimpleDateFormat("dd.MM.yyyy, HH:mm", Locale.GERMANY).format(Date(timestamp))
+
+/** Millisekunden von jetzt bis heute 18:00 (negativ, wenn schon vorbei). */
+private fun millisUntilTonight(): Long =
+    atTime(days = 0, hour = 18) - System.currentTimeMillis()
+
+/** Millisekunden von jetzt bis morgen 08:00. */
+private fun millisUntilTomorrowMorning(): Long =
+    atTime(days = 1, hour = 8) - System.currentTimeMillis()
+
+/** Millisekunden von jetzt bis zum nächsten Montag 08:00. */
+private fun millisUntilNextWeek(): Long {
+    val c = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 8); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }
+    // Mindestens einen Tag weiter, dann bis zum nächsten Montag.
+    do { c.add(Calendar.DAY_OF_YEAR, 1) } while (c.get(Calendar.DAY_OF_WEEK) != Calendar.MONDAY)
+    return c.timeInMillis - System.currentTimeMillis()
+}
+
+/** Zeitpunkt in [days] Tagen um [hour]:00 Uhr als Millis. */
+private fun atTime(days: Int, hour: Int): Long =
+    Calendar.getInstance().apply {
+        add(Calendar.DAY_OF_YEAR, days)
+        set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
