@@ -426,6 +426,20 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Markiert alle ungelesenen Nachrichten der **aktuell geöffneten Ansicht** als gelesen –
+     * funktioniert in jeder Kategorie (Posteingang, Quelle/Reiter, Priorität, Konversation),
+     * weil [HubUiState.messages] genau die gefilterte Liste der aktiven Ansicht enthält.
+     */
+    fun markVisibleRead() = viewModelScope.launch {
+        val ids = uiState.value.messages.filter { !it.isRead }.map { it.id }
+        if (ids.isEmpty()) return@launch
+        repository.markReadIn(ids)
+        _undo.tryEmit(UndoRequest("${ids.size} als gelesen markiert") {
+            viewModelScope.launch { repository.markUnreadIn(ids) }
+        })
+    }
+
     // --- Snooze ---
     /** Stellt eine Nachricht für [durationMillis] zurück und plant das Wiederauftauchen. */
     fun snooze(message: MessageEntity, durationMillis: Long) = viewModelScope.launch {

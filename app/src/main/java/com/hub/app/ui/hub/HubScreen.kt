@@ -217,8 +217,9 @@ fun HubScreen(
                       } else if (!state.isSearching) {
                         // Im Suchmodus keine weiteren Aktionen (Fokus auf dem Suchfeld).
                         // Nur zwei sichtbare Aktionen; alles Seltenere liegt im ⋮-Menü.
-                        val inboxRoot = state.tab == HubTab.POSTEINGANG &&
-                            state.conversationFilter == null && state.sourceFilter == null
+                        // „Alle als gelesen" in JEDER Kategorie, sobald es Ungelesene gibt
+                        // (Posteingang, Quelle/Reiter, Priorität, Konversation) – nicht im Archiv.
+                        val hasUnread = state.tab != HubTab.ARCHIV && state.messages.any { !it.isRead }
 
                         // Neuer Matrix-Chat, nur im Matrix-Reiter direkt sichtbar.
                         if (state.sourceFilter == com.hub.app.connectors.matrix.MatrixConnector.SOURCE_KEY &&
@@ -235,11 +236,11 @@ fun HubScreen(
                             Icon(Icons.Default.MoreVert, contentDescription = "Weitere Aktionen", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         DropdownMenu(expanded = overflowOpen, onDismissRequest = { overflowOpen = false }) {
-                            if (inboxRoot) {
+                            if (hasUnread) {
                                 DropdownMenuItem(
                                     text = { Text("Alle als gelesen") },
                                     leadingIcon = { Icon(Icons.Default.DoneAll, contentDescription = null) },
-                                    onClick = { overflowOpen = false; viewModel.markAllRead() }
+                                    onClick = { overflowOpen = false; viewModel.markVisibleRead() }
                                 )
                             }
                             DropdownMenuItem(
