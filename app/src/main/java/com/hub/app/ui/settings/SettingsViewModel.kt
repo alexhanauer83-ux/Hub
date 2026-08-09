@@ -52,6 +52,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val smsSource = SmsMessageSource(application)
     private val appLock = AppLockManager(application)
     private val notificationSettings = NotificationSettings(application)
+    private val soundSettings = com.hub.app.notification.SoundSettings(application)
 
     private val systemState = MutableStateFlow(readSystemState())
 
@@ -132,6 +133,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setSourceMuted(sourceKey: String, muted: Boolean) {
         notificationSettings.setMuted(sourceKey, muted)
         refreshSystemState()
+    }
+
+    /** Aktuell für diese Quelle hinterlegter Ton (URI-String) oder null (=Standard). */
+    fun currentSourceSound(sourceKey: String): String? = soundSettings.sourceSound(sourceKey)
+
+    /** Setzt (oder entfernt bei null) einen eigenen Benachrichtigungston für die ganze Quelle. */
+    fun setSourceSound(sourceKey: String, soundUri: String?) {
+        soundSettings.setSourceSound(sourceKey, soundUri)
     }
 
     fun setAppLockEnabled(enabled: Boolean) {

@@ -90,8 +90,15 @@ fun HubScreen(
     val selection by viewModel.selectionState.collectAsStateWithLifecycle()
     var peekMessage by remember { mutableStateOf<MessageEntity?>(null) }
     var replyMessage by remember { mutableStateOf<MessageEntity?>(null) }
+    var emailMessage by remember { mutableStateOf<MessageEntity?>(null) }
     var overflowOpen by remember { mutableStateOf(false) }
     var composeSheetOpen by remember { mutableStateOf(false) }
+
+    // E-Mails bekommen eine eigene, schöne Lese-Ansicht statt Antwort-/App-Weg.
+    val openEmail: (MessageEntity) -> Unit = { msg ->
+        emailMessage = msg
+        viewModel.markRead(msg.id)
+    }
 
     // Snackbar für widerrufbare Aktionen (Archivieren/Löschen/Gelesen …).
     val snackbarHostState = remember { SnackbarHostState() }
@@ -315,8 +322,9 @@ fun HubScreen(
                         state.sourceFilter != null -> "Keine Nachrichten dieser App"
                         else -> emptyHintFor(state.tab)
                     },
-                    onOpen = viewModel::openMessage,
-                    onReply = { replyMessage = it },
+                    // E-Mail: Tippen/Doppeltippen öffnet den Reader; sonst Antworten/App öffnen.
+                    onOpen = { if (isEmail(it)) openEmail(it) else viewModel.openMessage(it) },
+                    onReply = { if (isEmail(it)) openEmail(it) else replyMessage = it },
                     onMarkRead = viewModel::markReadUndoable,
                     onArchive = viewModel::archive,
                     onUnarchive = viewModel::unarchive,
@@ -367,7 +375,7 @@ fun HubScreen(
                 closePeek()
             },
             onOpenApp = {
-                viewModel.openMessage(message)
+                if (isEmail(message)) openEmail(message) else viewModel.openMessage(message)
                 closePeek()
             },
             onDelete = {
@@ -403,6 +411,16 @@ fun HubScreen(
             },
             canSendVoice = remember(message.id) { viewModel.canSendVoice(message) },
             onSendVoice = { file -> viewModel.sendVoice(message, file) }
+        )
+    }
+
+    emailMessage?.let { message ->
+        EmailReaderSheet(
+            message = message,
+            onDismiss = { emailMessage = null },
+            onArchive = { viewModel.archive(message.id); emailMessage = null },
+            onDelete = { viewModel.delete(message.id); emailMessage = null },
+            onTogglePriority = { viewModel.setPriority(message.id, !message.priority); emailMessage = null }
         )
     }
 
@@ -647,6 +665,10 @@ private fun buildRingtonePickerIntent(currentUri: String?): Intent =
             currentUri?.let { android.net.Uri.parse(it) }
         )
     }
+
+/** E-Mail-Nachricht? (IMAP-Quellen haben den sourceKey-Präfix „imap:".) */
+private fun isEmail(message: MessageEntity): Boolean =
+    message.sourceKey.startsWith(com.hub.app.connectors.imap.ImapConnector.SOURCE_KEY_PREFIX)
 
 private fun emptyHintFor(tab: HubTab): String = when (tab) {
     HubTab.POSTEINGANG -> "Keine ungelesenen Nachrichten"

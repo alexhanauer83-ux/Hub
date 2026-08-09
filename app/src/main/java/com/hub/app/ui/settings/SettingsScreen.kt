@@ -1,6 +1,9 @@
 package com.hub.app.ui.settings
 
 import android.Manifest
+import android.content.Intent
+import android.media.RingtoneManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -14,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Star
@@ -33,7 +37,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -80,6 +86,21 @@ fun SettingsScreen(
     val postNotifLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted -> viewModel.setReplaceOtherNotifications(granted) }
+
+    // Klingelton-Auswahl pro Quelle: merkt sich die Quelle, deren Ergebnis async zurückkommt.
+    var soundPickSource by remember { mutableStateOf<String?>(null) }
+    val ringtonePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val uri: Uri? = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+        }
+        soundPickSource?.let { viewModel.setSourceSound(it, uri?.toString()) }
+        soundPickSource = null
+    }
 
     LifecycleResumeEffect(Unit) {
         viewModel.refreshSystemState()
@@ -217,9 +238,16 @@ fun SettingsScreen(
                 SourceRow(
                     source = source,
                     muted = source.sourceKey in state.mutedSources,
+                    hasCustomSound = viewModel.currentSourceSound(source.sourceKey) != null,
                     onToggleEnabled = { viewModel.setSourceEnabled(source.sourceKey, it) },
                     onTogglePriority = { viewModel.setSourcePriority(source.sourceKey, !source.isPriority) },
-                    onToggleMuted = { viewModel.setSourceMuted(source.sourceKey, it) }
+                    onToggleMuted = { viewModel.setSourceMuted(source.sourceKey, it) },
+                    onChooseSound = {
+                        soundPickSource = source.sourceKey
+                        ringtonePicker.launch(
+                            buildRingtonePickerIntent(viewModel.currentSourceSound(source.sourceKey))
+                        )
+                    }
                 )
             }
 
@@ -372,6 +400,19 @@ private fun ThemeSection(
     }
 }
 
+/** System-Dialog zur Auswahl eines Benachrichtigungstons, mit aktueller Vorauswahl. */
+private fun buildRingtonePickerIntent(currentUri: String?): Intent =
+    Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+        putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
+        putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Ton wählen")
+        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, true)
+        putExtra(
+            RingtoneManager.EXTRA_RINGTONE_EXISTING_URI,
+            currentUri?.let { Uri.parse(it) }
+        )
+    }
+
 @Composable
 private fun SectionHeader(text: String) {
     Text(
@@ -464,9 +505,11 @@ private fun SmsSection(
 private fun SourceRow(
     source: SourceAppEntity,
     muted: Boolean,
+    hasCustomSound: Boolean,
     onToggleEnabled: (Boolean) -> Unit,
     onTogglePriority: () -> Unit,
-    onToggleMuted: (Boolean) -> Unit
+    onToggleMuted: (Boolean) -> Unit,
+    onChooseSound: () -> Unit
 ) {
     Row(
         Modifier
@@ -477,9 +520,21 @@ private fun SourceRow(
         Column(Modifier.weight(1f)) {
             Text(source.label, style = MaterialTheme.typography.titleMedium)
             Text(
-                if (source.isNativeConnector) "Direkte API-Anbindung" else "Über Benachrichtigungen",
+                buildString {
+                    append(if (source.isNativeConnector) "Direkte API-Anbindung" else "Über Benachrichtigungen")
+                    if (hasCustomSound) append(" · eigener Ton")
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        // Eigenen Benachrichtigungston für diese Quelle wählen (greift in Hubs eigenen
+        // Benachrichtigungen, siehe "Nur Hub in der Statusleiste").
+        IconButton(onClick = onChooseSound) {
+            Icon(
+                imageVector = Icons.Default.MusicNote,
+                contentDescription = "Ton wählen",
+                tint = if (hasCustomSound) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         // Stummschalten: keine Hub-Benachrichtigung/kein Ton für diese Quelle.

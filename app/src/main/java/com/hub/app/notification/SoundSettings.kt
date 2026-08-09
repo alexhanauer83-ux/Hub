@@ -32,6 +32,9 @@ class SoundSettings(context: Context) {
         }.apply()
     }
 
+    /** Nur der quellenweite Ton (ohne Absender-Fallback) – für die Einstellungen. */
+    fun sourceSound(sourceKey: String): String? = prefs.getString(sourceKey(sourceKey), null)
+
     /** Effektiver Ton: erst Absender, dann Quelle, sonst null (=Standard). */
     fun soundFor(sourceKey: String, sender: String): String? =
         senderSound(sourceKey, sender) ?: prefs.getString(sourceKey(sourceKey), null)
