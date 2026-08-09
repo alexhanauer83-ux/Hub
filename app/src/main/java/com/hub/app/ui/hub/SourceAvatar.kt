@@ -32,11 +32,14 @@ fun SourceAvatar(
     size: Dp = 40.dp
 ) {
     val icon = rememberAppIcon(packageName)
+    // Farbe pro Kontakt (aus dem Namen abgeleitet) statt einheitlicher Quellenfarbe – so
+    // unterscheiden sich Chats/Absender auf einen Blick, wie in modernen Messengern.
+    val circleColor = colorForSource(title.ifBlank { sourceKey })
     Box(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(if (icon == null) colorForSource(sourceKey) else Color.Transparent),
+            .background(if (icon == null) circleColor else Color.Transparent),
         contentAlignment = Alignment.Center
     ) {
         if (icon != null) {
@@ -48,12 +51,22 @@ fun SourceAvatar(
             )
         } else {
             Text(
-                text = title.trim().firstOrNull()?.uppercase() ?: "•",
+                text = initialsOf(title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 // Dunkle Schrift auf dem pastellfarbenen Kreis – in beiden Themes lesbar.
                 color = Color(0xFF14161B)
             )
         }
+    }
+}
+
+/** Bis zu zwei Initialen: Anfangsbuchstaben von erstem und letztem Wort des Namens. */
+private fun initialsOf(name: String): String {
+    val parts = name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+    return when {
+        parts.isEmpty() -> "•"
+        parts.size == 1 -> parts[0].take(1).uppercase()
+        else -> (parts.first().take(1) + parts.last().take(1)).uppercase()
     }
 }
