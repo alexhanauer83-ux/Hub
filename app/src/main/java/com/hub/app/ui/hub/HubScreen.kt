@@ -4,7 +4,6 @@ import android.content.Intent
 import android.media.RingtoneManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -551,7 +550,6 @@ private fun AccessBanner(onOpenOnboarding: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ConversationList(
     conversations: List<ConversationSummary>,
@@ -573,7 +571,7 @@ private fun ConversationList(
     LazyColumn(Modifier.fillMaxSize(), state = listState) {
         items(conversations, key = { it.sourceKey + "/" + it.groupValue }) { conversation ->
             // Sanftes Verschieben, wenn Unterhaltungen dazukommen/wegfallen (moderne Motion).
-            Column(Modifier.animateItemPlacement()) {
+            Column(Modifier.animateItem()) {
                 ConversationRow(conversation = conversation, onClick = { onOpen(conversation.ref) })
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             }
@@ -581,7 +579,6 @@ private fun ConversationList(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageList(
     messages: List<MessageEntity>,
@@ -616,7 +613,7 @@ private fun MessageList(
         itemsIndexed(messages, key = { _, m -> m.id }) { index, message ->
             // Sanftes Verschieben, wenn Zeilen dazukommen/wegfallen (gelesen/archiviert) –
             // moderne Motion nach Material 3.
-            Column(Modifier.animateItemPlacement()) {
+            Column(Modifier.animateItem()) {
                 // Datums-Trenner (nur im Chatverlauf): über der ersten Nachricht eines Tages.
                 if (showDateDividers) {
                     val prev = messages.getOrNull(index - 1)
