@@ -97,11 +97,14 @@ fun MessagePeekSheet(
             Spacer(Modifier.height(16.dp))
 
             Text(
+                // Web-Links im Nachrichtentext anklickbar machen.
                 text = if (message.isContentRedacted) {
-                    "Android hat den Inhalt dieser Benachrichtigung ausgeblendet " +
-                        "(Einstellung „Sensible Inhalte“). Hub kann ihn nicht anzeigen."
+                    androidx.compose.ui.text.AnnotatedString(
+                        "Android hat den Inhalt dieser Benachrichtigung ausgeblendet " +
+                            "(Einstellung „Sensible Inhalte“). Hub kann ihn nicht anzeigen."
+                    )
                 } else {
-                    message.content
+                    linkifiedText(message.content)
                 },
                 style = MaterialTheme.typography.bodyLarge,
                 color = if (message.isContentRedacted) {

@@ -101,11 +101,14 @@ fun EmailReaderSheet(
             // Voller Mailtext: auswählbar und mit angenehmem Zeilenabstand, eigener Scrollbereich.
             SelectionContainer {
                 Text(
+                    // Web-Links im Mailtext anklickbar machen (bleibt auswählbar).
                     text = if (message.isContentRedacted) {
-                        "Android hat den Inhalt dieser Benachrichtigung ausgeblendet " +
-                            "(Einstellung „Sensible Inhalte“)."
+                        androidx.compose.ui.text.AnnotatedString(
+                            "Android hat den Inhalt dieser Benachrichtigung ausgeblendet " +
+                                "(Einstellung „Sensible Inhalte“)."
+                        )
                     } else {
-                        message.content
+                        linkifiedText(message.content)
                     },
                     style = MaterialTheme.typography.bodyLarge.copy(lineHeight = 24.sp),
                     color = if (message.isContentRedacted) {
