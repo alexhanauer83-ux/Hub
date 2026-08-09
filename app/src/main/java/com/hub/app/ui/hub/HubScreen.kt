@@ -4,6 +4,7 @@ import android.content.Intent
 import android.media.RingtoneManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -541,6 +542,7 @@ private fun AccessBanner(onOpenOnboarding: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ConversationList(
     conversations: List<ConversationSummary>,
@@ -560,12 +562,16 @@ private fun ConversationList(
     }
     LazyColumn(Modifier.fillMaxSize()) {
         items(conversations, key = { it.sourceKey + "/" + it.groupValue }) { conversation ->
-            ConversationRow(conversation = conversation, onClick = { onOpen(conversation.ref) })
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            // Sanftes Verschieben, wenn Unterhaltungen dazukommen/wegfallen (moderne Motion).
+            Column(Modifier.animateItemPlacement()) {
+                ConversationRow(conversation = conversation, onClick = { onOpen(conversation.ref) })
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageList(
     messages: List<MessageEntity>,
@@ -597,30 +603,34 @@ private fun MessageList(
 
     LazyColumn(Modifier.fillMaxSize()) {
         itemsIndexed(messages, key = { _, m -> m.id }) { index, message ->
-            // Datums-Trenner (nur im Chatverlauf): über der ersten Nachricht eines Tages.
-            if (showDateDividers) {
-                val prev = messages.getOrNull(index - 1)
-                if (prev == null || !isSameDay(prev.timestamp, message.timestamp)) {
-                    DateDivider(message.timestamp)
+            // Sanftes Verschieben, wenn Zeilen dazukommen/wegfallen (gelesen/archiviert) –
+            // moderne Motion nach Material 3.
+            Column(Modifier.animateItemPlacement()) {
+                // Datums-Trenner (nur im Chatverlauf): über der ersten Nachricht eines Tages.
+                if (showDateDividers) {
+                    val prev = messages.getOrNull(index - 1)
+                    if (prev == null || !isSameDay(prev.timestamp, message.timestamp)) {
+                        DateDivider(message.timestamp)
+                    }
                 }
+                SwipeableMessageRow(
+                    message = message,
+                    isArchiveView = isArchiveView,
+                    onMarkRead = { onMarkRead(message.id) },
+                    onArchive = { onArchive(message.id) },
+                    onUnarchive = { onUnarchive(message.id) },
+                    // Kurz tippen = Antworten (Vorschau/Antwortfeld), doppelt tippen = App
+                    // öffnen, lange drücken = Menü (Peek mit allen Aktionen inkl. App öffnen).
+                    onClick = { onReply(message) },
+                    onDoubleClick = { onOpen(message) },
+                    onLongPress = { onOpenPeek(message) },
+                    onReply = { onReply(message) },
+                    selectionActive = selectionActive,
+                    selected = message.id in selectedIds,
+                    onToggleSelect = { onToggleSelect(message.id) }
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
             }
-            SwipeableMessageRow(
-                message = message,
-                isArchiveView = isArchiveView,
-                onMarkRead = { onMarkRead(message.id) },
-                onArchive = { onArchive(message.id) },
-                onUnarchive = { onUnarchive(message.id) },
-                // Kurz tippen = Antworten (Vorschau/Antwortfeld), doppelt tippen = App
-                // öffnen, lange drücken = Menü (Peek mit allen Aktionen inkl. App öffnen).
-                onClick = { onReply(message) },
-                onDoubleClick = { onOpen(message) },
-                onLongPress = { onOpenPeek(message) },
-                onReply = { onReply(message) },
-                selectionActive = selectionActive,
-                selected = message.id in selectedIds,
-                onToggleSelect = { onToggleSelect(message.id) }
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         }
     }
 }
