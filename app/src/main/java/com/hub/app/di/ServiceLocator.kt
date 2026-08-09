@@ -62,7 +62,11 @@ object ServiceLocator {
      */
     fun connectorRegistry(context: Context): ConnectorRegistry =
         connectorRegistry ?: synchronized(this) {
-            connectorRegistry ?: ConnectorRegistry(messageRepository(context)).apply {
+            connectorRegistry ?: ConnectorRegistry(
+                // Connector-Nachrichten zusätzlich als Hub-Benachrichtigung melden (nur dieser
+                // Weg, nicht der Fremd-App-Listener) – siehe NotifyingIngestSink.
+                com.hub.app.connectors.NotifyingIngestSink(context.applicationContext, messageRepository(context))
+            ).apply {
                 register(telegramConnector(context))
                 register(matrixConnector(context))
             }.also { connectorRegistry = it }
