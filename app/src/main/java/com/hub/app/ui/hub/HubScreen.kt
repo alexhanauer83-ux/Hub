@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -29,12 +30,14 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sms
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -70,6 +73,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -328,9 +332,18 @@ fun HubScreen(
                     listState = listState,
                     isArchiveView = state.tab == HubTab.ARCHIV && state.sourceFilter == null && state.conversationFilter == null,
                     emptyHint = when {
+                        state.isSearching -> "Nichts gefunden"
                         state.conversationFilter != null -> "Keine Nachrichten in dieser Unterhaltung"
                         state.sourceFilter != null -> "Keine Nachrichten dieser App"
                         else -> emptyHintFor(state.tab)
+                    },
+                    emptyIcon = when {
+                        state.isSearching -> Icons.Default.Search
+                        state.conversationFilter != null || state.sourceFilter != null ->
+                            Icons.AutoMirrored.Filled.Chat
+                        state.tab == HubTab.PRIORITAET -> Icons.Default.Star
+                        state.tab == HubTab.ARCHIV -> Icons.Default.Archive
+                        else -> Icons.Default.Inbox
                     },
                     // E-Mail: Tippen/Doppeltippen öffnet den Reader; sonst Antworten/App öffnen.
                     onOpen = { if (isEmail(it)) openEmail(it) else viewModel.openMessage(it) },
@@ -533,6 +546,31 @@ private fun GestureHintCard(onDismiss: () -> Unit) {
     }
 }
 
+/** Moderner Leerzustand: großes, dezentes Icon über einer kurzen Erklärung. */
+@Composable
+private fun EmptyState(icon: ImageVector, text: String) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                modifier = Modifier.size(72.dp)
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
 @Composable
 private fun AccessBanner(onOpenOnboarding: () -> Unit) {
     Column(
@@ -559,15 +597,7 @@ private fun ConversationList(
     onTogglePin: (ConversationSummary) -> Unit
 ) {
     if (conversations.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                text = "Keine Unterhaltungen",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(32.dp)
-            )
-        }
+        EmptyState(Icons.AutoMirrored.Filled.Chat, "Keine Unterhaltungen")
         return
     }
     LazyColumn(Modifier.fillMaxSize(), state = listState) {
@@ -591,6 +621,7 @@ private fun MessageList(
     listState: LazyListState,
     isArchiveView: Boolean,
     emptyHint: String,
+    emptyIcon: ImageVector,
     onOpen: (MessageEntity) -> Unit,
     onReply: (MessageEntity) -> Unit,
     onMarkRead: (String) -> Unit,
@@ -603,15 +634,7 @@ private fun MessageList(
     showDateDividers: Boolean = false
 ) {
     if (messages.isEmpty()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(
-                text = emptyHint,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(32.dp)
-            )
-        }
+        EmptyState(emptyIcon, emptyHint)
         return
     }
 
