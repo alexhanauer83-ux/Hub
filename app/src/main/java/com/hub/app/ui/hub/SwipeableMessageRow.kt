@@ -15,11 +15,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
+import android.os.Build
+import android.view.HapticFeedbackConstants
+import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import com.hub.app.data.local.entity.MessageEntity
 
@@ -48,6 +52,8 @@ fun SwipeableMessageRow(
     val currentOnMarkRead by rememberUpdatedState(onMarkRead)
     val currentOnArchive by rememberUpdatedState(onArchive)
     val currentOnUnarchive by rememberUpdatedState(onUnarchive)
+    // Fühlbare Bestätigung beim Auslösen einer Wisch-Aktion (moderne Haptik).
+    val view = LocalView.current
 
     // Aktion direkt in confirmValueChange auslösen und IMMER false zurückgeben: Die Aktion
     // ändert den DB-Zustand, woraufhin der Flow den Eintrag aus der Liste entfernt
@@ -61,9 +67,11 @@ fun SwipeableMessageRow(
     val state = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             when (value) {
-                SwipeToDismissBoxValue.StartToEnd -> currentOnMarkRead()
-                SwipeToDismissBoxValue.EndToStart ->
+                SwipeToDismissBoxValue.StartToEnd -> { view.confirmHaptic(); currentOnMarkRead() }
+                SwipeToDismissBoxValue.EndToStart -> {
+                    view.confirmHaptic()
                     if (isArchiveView) currentOnUnarchive() else currentOnArchive()
+                }
                 SwipeToDismissBoxValue.Settled -> Unit
             }
             false
@@ -94,6 +102,16 @@ fun SwipeableMessageRow(
             onReply = onReply
         )
     }
+}
+
+/** Kurze Bestätigungs-Haptik; nutzt das modernere CONFIRM ab Android 11, sonst einen Tick. */
+private fun View.confirmHaptic() {
+    val constant = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        HapticFeedbackConstants.CONFIRM
+    } else {
+        HapticFeedbackConstants.CLOCK_TICK
+    }
+    performHapticFeedback(constant)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
