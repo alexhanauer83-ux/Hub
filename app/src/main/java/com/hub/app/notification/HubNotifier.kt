@@ -33,8 +33,12 @@ object HubNotifier {
     private const val SILENT_CHANNEL_ID = "hub_messages_silent"
 
     fun post(context: Context, message: IncomingMessage) {
+        val settings = NotificationSettings(context)
         // Stummgeschaltete Quelle: keine Hub-Benachrichtigung (Nachricht bleibt im Feed).
-        if (NotificationSettings(context).isMuted(message.sourceKey)) return
+        if (settings.isMuted(message.sourceKey)) return
+        // Einzeln stummgeschaltete Konversation (z. B. lauter Gruppenchat).
+        val groupValue = message.conversationId?.takeIf { it.isNotBlank() } ?: message.sender
+        if (settings.isConversationMuted(message.sourceKey, groupValue)) return
 
         val manager = NotificationManagerCompat.from(context)
         if (!manager.areNotificationsEnabled()) return // ohne POST_NOTIFICATIONS zwecklos

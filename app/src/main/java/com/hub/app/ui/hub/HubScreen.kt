@@ -343,6 +343,7 @@ fun HubScreen(
         // Verfügbarkeit der Antwort-Action einmal pro Öffnen prüfen, nicht bei jeder
         // Recomposition - der Zustand kann sich nur zwischen zwei Peeks ändern.
         val canReply = remember(message.id) { viewModel.canReply(message) }
+        val conversationMuted = remember(message.id) { viewModel.isConversationMuted(message) }
         val closePeek = {
             peekMessage = null
             viewModel.resetQuickReplyState()
@@ -351,6 +352,11 @@ fun HubScreen(
         MessagePeekSheet(
             message = message,
             canQuickReply = canReply,
+            isConversationMuted = conversationMuted,
+            onToggleConversationMute = {
+                viewModel.toggleConversationMuted(message)
+                closePeek()
+            },
             quickReplyState = quickReplyState,
             onSendQuickReply = { text -> viewModel.sendReply(message, text) },
             onDismiss = closePeek,

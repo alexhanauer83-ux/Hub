@@ -138,6 +138,16 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
         _pinnedSources.value = notificationSettings.pinnedSources()
     }
 
+    /** Ob die Konversation dieser Nachricht aktuell stummgeschaltet ist (keine Alarmierung). */
+    fun isConversationMuted(message: MessageEntity): Boolean =
+        notificationSettings.isConversationMuted(message.sourceKey, message.groupValue())
+
+    /** Schaltet die Konversation dieser Nachricht stumm bzw. hebt die Stummschaltung auf. */
+    fun toggleConversationMuted(message: MessageEntity) {
+        val muted = !isConversationMuted(message)
+        notificationSettings.setConversationMuted(message.sourceKey, message.groupValue(), muted)
+    }
+
     private val filter = combine(
         _tab, _sourceFilter, _conversationFilter, _grouped, _searchQuery
     ) { tab, src, conv, grouped, query ->

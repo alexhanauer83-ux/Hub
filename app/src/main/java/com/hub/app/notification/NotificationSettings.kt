@@ -90,10 +90,32 @@ class NotificationSettings(context: Context) {
         prefs.edit().putStringSet(KEY_MUTED, updated).apply()
     }
 
+    /**
+     * Einzelne stummgeschaltete Konversationen (Schlüssel = sourceKey + Gruppenwert). Betrifft
+     * nur die Alarmierung (Hub-Benachrichtigung/Ton) – die Nachrichten bleiben im Feed.
+     */
+    fun mutedConversations(): Set<String> =
+        prefs.getStringSet(KEY_MUTED_CONV, emptySet())?.toSet() ?: emptySet()
+
+    fun isConversationMuted(sourceKey: String, groupValue: String): Boolean =
+        conversationKey(sourceKey, groupValue) in mutedConversations()
+
+    fun setConversationMuted(sourceKey: String, groupValue: String, muted: Boolean) {
+        val key = conversationKey(sourceKey, groupValue)
+        val updated = mutedConversations().toMutableSet().apply {
+            if (muted) add(key) else remove(key)
+        }
+        prefs.edit().putStringSet(KEY_MUTED_CONV, updated).apply()
+    }
+
+    // \u0001 als Trenner: kommt in sourceKey/Gruppenwert praktisch nicht vor.
+    private fun conversationKey(sourceKey: String, groupValue: String) = "$sourceKey\u0001$groupValue"
+
     private companion object {
         const val PREFS_NAME = "hub_notification_settings"
         const val KEY_REPLACE = "replace_other_notifications"
         const val KEY_MUTED = "muted_sources"
+        const val KEY_MUTED_CONV = "muted_conversations"
         const val KEY_BG_SYNC = "background_sync"
         const val KEY_PINNED = "pinned_sources"
         const val KEY_GESTURE_HINT = "gesture_hint_dismissed"

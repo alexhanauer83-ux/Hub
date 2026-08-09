@@ -61,6 +61,8 @@ fun MessagePeekSheet(
     onChooseSound: () -> Unit,
     onSnooze: (Long) -> Unit,
     onSelect: () -> Unit,
+    isConversationMuted: Boolean,
+    onToggleConversationMute: () -> Unit,
     canQuickReply: Boolean,
     quickReplyState: QuickReplyState,
     onSendQuickReply: (String) -> Unit
@@ -158,6 +160,9 @@ fun MessagePeekSheet(
             }
             TextButton(onClick = onSelect) {
                 Text("Mehrere auswählen")
+            }
+            TextButton(onClick = onToggleConversationMute) {
+                Text(if (isConversationMuted) "Stummschaltung aufheben" else "Konversation stummschalten")
             }
 
             // Snooze: kurz zurückstellen, taucht danach wieder auf. Neben festen Dauern gibt es
