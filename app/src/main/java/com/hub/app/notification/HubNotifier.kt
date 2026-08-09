@@ -29,6 +29,8 @@ object HubNotifier {
     private const val CHANNEL_ID = "hub_messages_v2"
     private const val CHANNEL_NAME = "Hub-Nachrichten"
     private const val OLD_CHANNEL_ID = "hub_replacement"
+    // Stiller Channel für die Ruhezeiten: sichtbar, aber ohne Ton/Vibration/Heads-up.
+    private const val SILENT_CHANNEL_ID = "hub_messages_silent"
 
     fun post(context: Context, message: IncomingMessage) {
         // Stummgeschaltete Quelle: keine Hub-Benachrichtigung (Nachricht bleibt im Feed).
@@ -37,10 +39,16 @@ object HubNotifier {
         val manager = NotificationManagerCompat.from(context)
         if (!manager.areNotificationsEnabled()) return // ohne POST_NOTIFICATIONS zwecklos
 
-        // Absenderspezifischer Ton? Dann eigenen Channel für diesen Ton verwenden
-        // (unter Android ist der Ton an den Channel gebunden, nicht an die Notification).
-        val customSound = SoundSettings(context).soundFor(message.sourceKey, message.sender)
-        val channelId = ensureChannel(context, customSound)
+        // Ruhezeit? Dann still zustellen (sichtbar, aber ohne Ton/Heads-up). Sonst normaler
+        // Channel – ggf. mit absenderspezifischem Ton (der Ton hängt am Channel, nicht an der
+        // Notification).
+        val quiet = NotificationSettings(context).isInQuietHours()
+        val channelId = if (quiet) {
+            ensureSilentChannel(context)
+        } else {
+            val customSound = SoundSettings(context).soundFor(message.sourceKey, message.sender)
+            ensureChannel(context, customSound)
+        }
 
         val openIntent = Intent(context, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
@@ -125,6 +133,24 @@ object HubNotifier {
      * Standard-Channel; mit eigenem Ton ein pro Ton eindeutiger Channel (die ID leitet sich
      * aus der Ton-URI ab, damit gleiche Töne denselben Channel teilen).
      */
+    /** Stiller Channel (IMPORTANCE_LOW: kein Ton, keine Vibration, kein Heads-up) für Ruhezeiten. */
+    private fun ensureSilentChannel(context: Context): String {
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return SILENT_CHANNEL_ID
+        if (manager.getNotificationChannel(SILENT_CHANNEL_ID) == null) {
+            val channel = NotificationChannel(
+                SILENT_CHANNEL_ID,
+                "$CHANNEL_NAME (Ruhezeit)",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Während der Ruhezeiten leise zugestellte Nachrichten"
+                enableVibration(false)
+                setSound(null, null)
+            }
+            manager.createNotificationChannel(channel)
+        }
+        return SILENT_CHANNEL_ID
+    }
+
     private fun ensureChannel(context: Context, soundUri: String?): String {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return CHANNEL_ID
         // Alten, lautlosen Channel aufräumen (Importance ist nachträglich nicht änderbar).

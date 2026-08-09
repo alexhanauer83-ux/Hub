@@ -42,7 +42,10 @@ data class SettingsUiState(
     val replaceOtherNotifications: Boolean = false,
     val mutedSources: Set<String> = emptySet(),
     val backgroundSyncEnabled: Boolean = true,
-    val hasConnector: Boolean = false
+    val hasConnector: Boolean = false,
+    val quietHoursEnabled: Boolean = false,
+    val quietHoursStart: Int = 22 * 60,
+    val quietHoursEnd: Int = 7 * 60
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -119,8 +122,26 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         replaceOtherNotifications = notificationSettings.replaceOtherNotifications,
         mutedSources = notificationSettings.mutedSources(),
         backgroundSyncEnabled = notificationSettings.backgroundSyncEnabled,
-        hasConnector = com.hub.app.connectors.ConnectorSyncService.anyConnectorConfigured(getApplication())
+        hasConnector = com.hub.app.connectors.ConnectorSyncService.anyConnectorConfigured(getApplication()),
+        quietHoursEnabled = notificationSettings.quietHoursEnabled,
+        quietHoursStart = notificationSettings.quietHoursStartMinutes,
+        quietHoursEnd = notificationSettings.quietHoursEndMinutes
     )
+
+    fun setQuietHoursEnabled(enabled: Boolean) {
+        notificationSettings.quietHoursEnabled = enabled
+        refreshSystemState()
+    }
+
+    fun setQuietHoursStart(minutes: Int) {
+        notificationSettings.quietHoursStartMinutes = minutes
+        refreshSystemState()
+    }
+
+    fun setQuietHoursEnd(minutes: Int) {
+        notificationSettings.quietHoursEndMinutes = minutes
+        refreshSystemState()
+    }
 
     fun setBackgroundSyncEnabled(enabled: Boolean) {
         notificationSettings.backgroundSyncEnabled = enabled

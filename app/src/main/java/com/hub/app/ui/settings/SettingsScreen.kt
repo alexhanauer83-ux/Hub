@@ -1,6 +1,7 @@
 package com.hub.app.ui.settings
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.media.RingtoneManager
 import android.net.Uri
@@ -155,6 +156,21 @@ fun SettingsScreen(
                         } else {
                             viewModel.setReplaceOtherNotifications(wantEnabled)
                         }
+                    }
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
+                SectionHeader("Ruhezeiten")
+                QuietHoursSection(
+                    enabled = state.quietHoursEnabled,
+                    startMinutes = state.quietHoursStart,
+                    endMinutes = state.quietHoursEnd,
+                    onToggle = viewModel::setQuietHoursEnabled,
+                    onPickStart = {
+                        showTimePicker(context, state.quietHoursStart) { viewModel.setQuietHoursStart(it) }
+                    },
+                    onPickEnd = {
+                        showTimePicker(context, state.quietHoursEnd) { viewModel.setQuietHoursEnd(it) }
                     }
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
@@ -376,6 +392,53 @@ private fun NotificationReplacementSection(
         }
     }
 }
+
+@Composable
+private fun QuietHoursSection(
+    enabled: Boolean,
+    startMinutes: Int,
+    endMinutes: Int,
+    onToggle: (Boolean) -> Unit,
+    onPickStart: () -> Unit,
+    onPickEnd: () -> Unit
+) {
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Nachts nicht stören", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "In diesem Zeitfenster stellt Hub Nachrichten leise zu (kein Ton, kein " +
+                        "Heads-up) – sie erscheinen weiter im Feed. Wirkt in Hubs eigenen " +
+                        "Benachrichtigungen („Nur Hub in der Statusleiste“).",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(checked = enabled, onCheckedChange = onToggle)
+        }
+        if (enabled) {
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onPickStart) { Text("Von ${formatMinutes(startMinutes)}") }
+                TextButton(onClick = onPickEnd) { Text("Bis ${formatMinutes(endMinutes)}") }
+            }
+        }
+    }
+}
+
+/** Öffnet den System-Zeitwähler und meldet die gewählte Zeit als Minuten seit Mitternacht. */
+private fun showTimePicker(context: Context, minutes: Int, onSet: (Int) -> Unit) {
+    android.app.TimePickerDialog(
+        context,
+        { _, hour, minute -> onSet(hour * 60 + minute) },
+        minutes / 60,
+        minutes % 60,
+        true
+    ).show()
+}
+
+private fun formatMinutes(minutes: Int): String =
+    "%02d:%02d".format(minutes / 60, minutes % 60)
 
 @Composable
 private fun ThemeSection(

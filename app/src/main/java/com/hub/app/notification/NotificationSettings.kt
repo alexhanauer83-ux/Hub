@@ -1,6 +1,7 @@
 package com.hub.app.notification
 
 import android.content.Context
+import java.util.Calendar
 
 /**
  * Einfache, nicht sensible App-Einstellungen rund um Benachrichtigungen (normale
@@ -31,6 +32,39 @@ class NotificationSettings(context: Context) {
     var gestureHintDismissed: Boolean
         get() = prefs.getBoolean(KEY_GESTURE_HINT, false)
         set(value) = prefs.edit().putBoolean(KEY_GESTURE_HINT, value).apply()
+
+    /**
+     * Ruhezeiten: In diesem Zeitfenster postet Hub seine eigenen Benachrichtigungen still
+     * (kein Ton/Heads-up); die Nachricht bleibt im Feed. Zeiten als Minuten seit Mitternacht.
+     */
+    var quietHoursEnabled: Boolean
+        get() = prefs.getBoolean(KEY_QUIET_ENABLED, false)
+        set(value) = prefs.edit().putBoolean(KEY_QUIET_ENABLED, value).apply()
+
+    var quietHoursStartMinutes: Int
+        get() = prefs.getInt(KEY_QUIET_START, 22 * 60)
+        set(value) = prefs.edit().putInt(KEY_QUIET_START, value).apply()
+
+    var quietHoursEndMinutes: Int
+        get() = prefs.getInt(KEY_QUIET_END, 7 * 60)
+        set(value) = prefs.edit().putInt(KEY_QUIET_END, value).apply()
+
+    /** Liegt [nowMinutes] (Minuten seit Mitternacht) aktuell in der Ruhezeit? Behandelt Mitternachts-Überlauf. */
+    fun isInQuietHours(nowMinutes: Int = nowMinutesOfDay()): Boolean {
+        if (!quietHoursEnabled) return false
+        val start = quietHoursStartMinutes
+        val end = quietHoursEndMinutes
+        return when {
+            start == end -> false
+            start < end -> nowMinutes in start until end
+            else -> nowMinutes >= start || nowMinutes < end // über Mitternacht hinweg
+        }
+    }
+
+    private fun nowMinutesOfDay(): Int {
+        val c = Calendar.getInstance()
+        return c.get(Calendar.HOUR_OF_DAY) * 60 + c.get(Calendar.MINUTE)
+    }
 
     /** Angepinnte Quellen-Reiter (erscheinen vorne in der Reiter-Leiste). */
     fun pinnedSources(): Set<String> = prefs.getStringSet(KEY_PINNED, emptySet())?.toSet() ?: emptySet()
@@ -63,5 +97,8 @@ class NotificationSettings(context: Context) {
         const val KEY_BG_SYNC = "background_sync"
         const val KEY_PINNED = "pinned_sources"
         const val KEY_GESTURE_HINT = "gesture_hint_dismissed"
+        const val KEY_QUIET_ENABLED = "quiet_hours_enabled"
+        const val KEY_QUIET_START = "quiet_hours_start"
+        const val KEY_QUIET_END = "quiet_hours_end"
     }
 }
