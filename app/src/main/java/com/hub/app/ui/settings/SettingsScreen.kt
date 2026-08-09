@@ -302,7 +302,8 @@ private fun UpdateSection(
             UpdateState.Checking -> Text("Suche nach Updates …", style = MaterialTheme.typography.bodyMedium)
             UpdateState.Downloading -> Text(
                 "Update wird im Hintergrund geladen – du kannst die App verlassen. " +
-                    "Die Installation startet automatisch.",
+                    "Sobald es fertig ist, tippe die Benachrichtigung „Update bereit“ " +
+                    "oder öffne Hub erneut, dann startet die Installation.",
                 style = MaterialTheme.typography.bodyMedium
             )
             UpdateState.UpToDate -> {

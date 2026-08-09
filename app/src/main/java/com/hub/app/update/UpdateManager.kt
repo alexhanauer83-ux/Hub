@@ -1,9 +1,16 @@
 package com.hub.app.update
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.FileProvider
+import com.hub.app.R
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
@@ -31,6 +38,10 @@ object UpdateManager {
     private const val FILE_NAME = "hub-update.apk"
     private const val APK_MIME = "application/vnd.android.package-archive"
     private const val KEY_DOWNLOAD_ID = "download_id"
+    private const val KEY_PENDING_INSTALL = "pending_install"
+    private const val KEY_PENDING_VERSION = "pending_version"
+    private const val UPDATE_CHANNEL_ID = "hub_update"
+    private const val UPDATE_NOTIF_ID = 4711
 
     // Timeouts, damit ein Download bei schlechtem Netz sauber abbricht statt zu haengen.
     private val client = OkHttpClient.Builder()
@@ -100,7 +111,13 @@ object UpdateManager {
             .setMimeType(APK_MIME)
 
         val id = dm.enqueue(request)
-        prefs(context).edit().putLong(KEY_DOWNLOAD_ID, id).apply()
+        prefs(context).edit()
+            .putLong(KEY_DOWNLOAD_ID, id)
+            // Zielversion merken (fuer den Selbst-Reset des "ausstehend"-Flags) und ein evtl.
+            // altes Flag loeschen, solange der neue Download noch laeuft.
+            .putString(KEY_PENDING_VERSION, info.versionName)
+            .putBoolean(KEY_PENDING_INSTALL, false)
+            .apply()
         return id
     }
 
@@ -110,16 +127,93 @@ object UpdateManager {
     private fun downloadFile(context: Context): File =
         File(context.getExternalFilesDir(DOWNLOAD_DIR), FILE_NAME)
 
-    /** Startet den System-Installer für die zuletzt heruntergeladene APK. */
-    fun installDownloaded(context: Context) {
+    private fun hasDownloadedApk(context: Context): Boolean = downloadFile(context).exists()
+
+    /** Installer-Intent (ACTION_VIEW auf die APK via FileProvider) oder null, wenn keine APK da ist. */
+    private fun buildInstallIntent(context: Context): Intent? {
         val apk = downloadFile(context)
-        if (!apk.exists()) return
+        if (!apk.exists()) return null
         val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apk)
-        val intent = Intent(Intent.ACTION_VIEW).apply {
+        return Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, APK_MIME)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        context.startActivity(intent)
+    }
+
+    /**
+     * Startet den System-Installer direkt. **Nur aus dem Vordergrund** (Activity) erlaubt –
+     * ab Android 12 blockiert das System einen Activity-Start aus dem Hintergrund. Liefert,
+     * ob der Start ausgelöst wurde.
+     */
+    fun launchInstaller(context: Context): Boolean {
+        val intent = buildInstallIntent(context) ?: return false
+        return runCatching { context.startActivity(intent) }.isSuccess
+    }
+
+    /**
+     * Ob nach einem Hintergrund-Download noch eine Installation aussteht. Prüft zusätzlich die
+     * Version: Läuft bereits die Zielversion (Update wurde schon installiert), gilt nichts mehr
+     * als ausstehend – so wird derselbe Installer nicht endlos erneut geöffnet.
+     */
+    fun hasPendingInstall(context: Context): Boolean {
+        val p = prefs(context)
+        if (!p.getBoolean(KEY_PENDING_INSTALL, false)) return false
+        if (!hasDownloadedApk(context)) return false
+        val target = p.getString(KEY_PENDING_VERSION, null)
+        return target == null || target != currentVersion(context)
+    }
+
+    fun clearPendingInstall(context: Context) {
+        prefs(context).edit().putBoolean(KEY_PENDING_INSTALL, false).apply()
+        runCatching { NotificationManagerCompat.from(context).cancel(UPDATE_NOTIF_ID) }
+    }
+
+    /**
+     * Wird vom [UpdateDownloadReceiver] nach fertigem Download aufgerufen. Ein direkter
+     * Activity-Start scheitert hier (Hintergrund, Android 12+). Stattdessen:
+     * 1. dringende, tippbare Benachrichtigung posten (Tipp = vom Nutzer ausgelöster Start),
+     * 2. „ausstehend"-Flag setzen, damit Hub die Installation beim nächsten Öffnen selbst
+     *    aus dem Vordergrund anstößt (funktioniert auch ohne Benachrichtigungs-Berechtigung).
+     */
+    fun installDownloaded(context: Context) {
+        if (!hasDownloadedApk(context)) return
+        prefs(context).edit().putBoolean(KEY_PENDING_INSTALL, true).apply()
+        postInstallNotification(context)
+    }
+
+    private fun postInstallNotification(context: Context) {
+        val intent = buildInstallIntent(context) ?: return
+        val pending = PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            manager.getNotificationChannel(UPDATE_CHANNEL_ID) == null
+        ) {
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    UPDATE_CHANNEL_ID,
+                    "Hub-Updates",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply { description = "Meldet fertig geladene App-Updates zum Installieren" }
+            )
+        }
+
+        val version = prefs(context).getString(KEY_PENDING_VERSION, null)
+        val notification = NotificationCompat.Builder(context, UPDATE_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_hub)
+            .setContentTitle(if (version != null) "Update $version bereit" else "Update bereit")
+            .setContentText("Zum Installieren tippen")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)
+            .setAutoCancel(true)
+            .setContentIntent(pending)
+            .build()
+        runCatching { NotificationManagerCompat.from(context).notify(UPDATE_NOTIF_ID, notification) }
     }
 
     private fun prefs(context: Context) =

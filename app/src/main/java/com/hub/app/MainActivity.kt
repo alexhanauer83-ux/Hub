@@ -30,6 +30,24 @@ class MainActivity : FragmentActivity() {
 
     private lateinit var appLock: AppLockManager
 
+    override fun onResume() {
+        super.onResume()
+        maybeInstallPendingUpdate()
+    }
+
+    /**
+     * Ein im Hintergrund fertig geladenes Update kann Android nicht selbst installieren
+     * (Background-Activity-Launch gesperrt). Sobald Hub wieder im Vordergrund und entsperrt
+     * ist, stoßen wir den System-Installer hier an – der Start ist dann erlaubt.
+     */
+    private fun maybeInstallPendingUpdate() {
+        if (!::appLock.isInitialized || appLock.requiresUnlock()) return
+        if (com.hub.app.update.UpdateManager.hasPendingInstall(this)) {
+            com.hub.app.update.UpdateManager.clearPendingInstall(this)
+            com.hub.app.update.UpdateManager.launchInstaller(this)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -66,6 +84,8 @@ class MainActivity : FragmentActivity() {
                             onUnlocked = {
                                 appLock.onUnlockSucceeded()
                                 locked = false
+                                // Nach dem Entsperren ggf. ausstehendes Update installieren.
+                                maybeInstallPendingUpdate()
                             }
                         )
                     } else {
