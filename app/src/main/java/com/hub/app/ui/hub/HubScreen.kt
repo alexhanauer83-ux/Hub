@@ -370,8 +370,9 @@ fun HubScreen(
                     selectionActive = selection.active,
                     selectedIds = selection.ids,
                     onToggleSelect = viewModel::toggleSelected,
-                    // Datums-Trenner im Chatverlauf (Konversations-Detail).
-                    showDateDividers = state.conversationFilter != null
+                    // Datums-Trenner (Heute/Gestern/Datum) in allen flachen Listen – bessere
+                    // Orientierung im Posteingang, in Priorität/Archiv, Suche und im Chatverlauf.
+                    showDateDividers = true
                 )
             }
         }
