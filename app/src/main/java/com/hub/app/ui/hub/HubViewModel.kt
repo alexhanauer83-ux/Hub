@@ -81,7 +81,8 @@ data class HubUiState(
     val searchQuery: String? = null,
     val pinnedSources: Set<String> = emptySet(),
     val hasNotificationAccess: Boolean = false,
-    val gestureHintVisible: Boolean = false
+    val gestureHintVisible: Boolean = false,
+    val recentSearches: List<String> = emptyList()
 ) {
     val isSearching: Boolean get() = searchQuery != null
 
@@ -122,6 +123,9 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
     private val _pinnedSources = MutableStateFlow(notificationSettings.pinnedSources())
     private val _hasNotificationAccess = MutableStateFlow(NotificationAccess.isGranted(application))
     private val _gestureHintVisible = MutableStateFlow(!notificationSettings.gestureHintDismissed)
+
+    private val searchHistory = com.hub.app.notification.SearchHistory(application)
+    private val _recentSearches = MutableStateFlow(searchHistory.recent())
 
     /** Widerrufbare Aktionen für die Snackbar (Archivieren/Löschen/Gelesen …). */
     private val _undo = MutableSharedFlow<UndoRequest>(extraBufferCapacity = 4)
@@ -206,13 +210,14 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
         val counts: List<com.hub.app.data.local.dao.SourceCount>,
         val access: Boolean,
         val pinned: Set<String>,
-        val gestureHint: Boolean
+        val gestureHint: Boolean,
+        val recentSearches: List<String>
     )
 
     private val extras = combine(
-        sourceCounts, _hasNotificationAccess, _pinnedSources, _gestureHintVisible
-    ) { counts, access, pinned, gestureHint ->
-        Extras(counts, access, pinned, gestureHint)
+        sourceCounts, _hasNotificationAccess, _pinnedSources, _gestureHintVisible, _recentSearches
+    ) { counts, access, pinned, gestureHint, recent ->
+        Extras(counts, access, pinned, gestureHint, recent)
     }
 
     val uiState: StateFlow<HubUiState> = combine(
@@ -234,7 +239,8 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
             searchQuery = f.searchQuery,
             pinnedSources = extra.pinned,
             hasNotificationAccess = extra.access,
-            gestureHintVisible = extra.gestureHint
+            gestureHintVisible = extra.gestureHint,
+            recentSearches = extra.recentSearches
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HubUiState())
 
@@ -280,7 +286,20 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startSearch() { _searchQuery.value = "" }
     fun setSearchQuery(query: String) { _searchQuery.value = query }
-    fun stopSearch() { _searchQuery.value = null }
+
+    fun stopSearch() {
+        // Beim Schließen den (nicht leeren) Begriff in den Verlauf aufnehmen.
+        _searchQuery.value?.trim()?.takeIf { it.isNotBlank() }?.let {
+            searchHistory.add(it)
+            _recentSearches.value = searchHistory.recent()
+        }
+        _searchQuery.value = null
+    }
+
+    fun clearRecentSearches() {
+        searchHistory.clear()
+        _recentSearches.value = emptyList()
+    }
 
     /** Nach Rückkehr aus den Systemeinstellungen erneut prüfen. */
     fun refreshNotificationAccess() {

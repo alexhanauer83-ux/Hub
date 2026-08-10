@@ -7,6 +7,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -38,6 +40,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -58,6 +61,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
@@ -289,6 +293,17 @@ fun HubScreen(
                     !state.isSearching && !selection.active
                 ) {
                     GestureHintCard(onDismiss = viewModel::dismissGestureHint)
+                }
+
+                // Letzte Suchen anbieten, solange das Suchfeld leer ist.
+                if (state.isSearching && state.searchQuery.isNullOrBlank() &&
+                    state.recentSearches.isNotEmpty()
+                ) {
+                    RecentSearches(
+                        recent = state.recentSearches,
+                        onPick = viewModel::setSearchQuery,
+                        onClear = viewModel::clearRecentSearches
+                    )
                 }
 
                 // Reiter (Ansichten + native Quellen) – nur ausblenden im Detail/Suche.
@@ -541,6 +556,38 @@ private fun GestureHintCard(onDismiss: () -> Unit) {
             }
             IconButton(onClick = onDismiss) {
                 Icon(Icons.Default.Close, contentDescription = "Hinweis ausblenden", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+/** Chips mit den zuletzt genutzten Suchbegriffen (erscheinen bei leerem Suchfeld). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RecentSearches(
+    recent: List<String>,
+    onPick: (String) -> Unit,
+    onClear: () -> Unit
+) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Zuletzt gesucht",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = onClear) { Text("Löschen") }
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            recent.forEach { query ->
+                AssistChip(
+                    onClick = { onPick(query) },
+                    label = { Text(query) },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                )
             }
         }
     }
