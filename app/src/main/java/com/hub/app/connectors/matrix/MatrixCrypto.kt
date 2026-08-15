@@ -1,9 +1,11 @@
 package com.hub.app.connectors.matrix
 
 import android.content.Context
+import android.util.Log
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import retrofit2.HttpException
 import org.matrix.rustcomponents.sdk.crypto.DeviceLists
 import org.matrix.rustcomponents.sdk.crypto.EncryptionSettings
 import org.matrix.rustcomponents.sdk.crypto.EventEncryptionAlgorithm
@@ -58,13 +60,19 @@ class MatrixCrypto private constructor(
         nextBatch: String
     ) {
         // 0.4.3-Signatur: mit nextBatchToken, aber ohne decryptionSettings (kam erst später).
-        machine.receiveSyncChanges(
-            events = toDeviceEventsJson,
-            deviceChanges = DeviceLists(changed = changedDevices, left = leftDevices),
-            keyCounts = oneTimeKeyCounts,
-            unusedFallbackKeys = unusedFallbackKeys,
-            nextBatchToken = nextBatch
-        )
+        try {
+            machine.receiveSyncChanges(
+                events = toDeviceEventsJson,
+                deviceChanges = DeviceLists(changed = changedDevices, left = leftDevices),
+                keyCounts = oneTimeKeyCounts,
+                unusedFallbackKeys = unusedFallbackKeys,
+                nextBatchToken = nextBatch
+            )
+        } catch (e: Exception) {
+            // DIAGNOSE: Format des To-Device-Payloads sichtbar machen (Serialisierungsfehler).
+            Log.e(TAG, "receiveSyncChanges fehlgeschlagen. events(head)=${toDeviceEventsJson.take(300)} otk=$oneTimeKeyCounts", e)
+            throw e
+        }
         drainOutgoing(api, auth)
     }
 
@@ -78,6 +86,7 @@ class MatrixCrypto private constructor(
             val requests = machine.outgoingRequests()
             if (requests.isEmpty()) return
             for (request in requests) {
+              try {
                 // VERIFY: Feldnamen/Formen der Request-Varianten je crypto-android-Version.
                 when (request) {
                     is Request.KeysUpload -> {
@@ -118,6 +127,12 @@ class MatrixCrypto private constructor(
                         // damit die Maschine nicht in einer Schleife hängen bleibt. VERIFY.
                     }
                 }
+              } catch (e: HttpException) {
+                // DIAGNOSE: welcher Krypto-Endpunkt scheitert und mit welchem Matrix-errcode?
+                val body = runCatching { e.response()?.errorBody()?.string() }.getOrNull()
+                Log.e(TAG, "Krypto-Request ${request::class.simpleName} → HTTP ${e.code()} · body=$body", e)
+                throw e
+              }
             }
         }
     }
@@ -190,6 +205,8 @@ class MatrixCrypto private constructor(
     }
 
     companion object {
+        private const val TAG = "MatrixCrypto"
+
         /**
          * Baut die Maschine für ein Konto. Der Store liegt geräteintern unter files/matrix-crypto/<deviceId>.
          * Direkt nach dem Erstellen einmal [drainOutgoing] aufrufen (lädt Geräte- und One-Time-Keys hoch).
