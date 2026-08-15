@@ -133,6 +133,9 @@ class MessageRepository(
         messageDao.deleteReadOlderThan(cutoff)
     }
 
+    /** Leert den gesamten Nachrichten-Cache (Einstellungen bleiben; Feed baut sich neu auf). */
+    suspend fun clearAllMessages() = messageDao.clearAll()
+
     suspend fun snooze(id: String, until: Long) = messageDao.snooze(id, until)
     suspend fun clearExpiredSnoozes(now: Long) = messageDao.clearExpiredSnoozes(now)
     suspend fun nextSnoozeDue(): Long? = messageDao.nextSnoozeDue()

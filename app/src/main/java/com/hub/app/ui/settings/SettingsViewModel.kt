@@ -130,6 +130,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         retentionDays = notificationSettings.retentionDays
     )
 
+    /** Leert den gesamten Nachrichten-Cache (behebt „alte Nachrichten bleiben stehen"). */
+    fun clearAllMessages() = viewModelScope.launch { repository.clearAllMessages() }
+
     /** Setzt die Aufbewahrungsdauer und räumt sofort entsprechend auf. */
     fun setRetentionDays(days: Int) {
         notificationSettings.retentionDays = days

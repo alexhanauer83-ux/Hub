@@ -162,6 +162,10 @@ interface MessageDao {
     @Query("DELETE FROM messages WHERE isRead = 1 AND timestamp < :cutoff")
     suspend fun deleteReadOlderThan(cutoff: Long)
 
+    /** Leert den gesamten Nachrichten-Cache (alle Zeilen). */
+    @Query("DELETE FROM messages")
+    suspend fun clearAll()
+
     // --- Snooze ---
     @Query("UPDATE messages SET snoozeUntil = :until WHERE id = :id")
     suspend fun snooze(id: String, until: Long)

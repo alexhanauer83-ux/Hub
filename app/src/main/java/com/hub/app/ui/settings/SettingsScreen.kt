@@ -89,6 +89,9 @@ fun SettingsScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted -> viewModel.setReplaceOtherNotifications(granted) }
 
+    // Bestätigungsdialog für das endgültige Leeren des Nachrichten-Caches.
+    var showClearDialog by remember { mutableStateOf(false) }
+
     // Klingelton-Auswahl pro Quelle: merkt sich die Quelle, deren Ergebnis async zurückkommt.
     var soundPickSource by remember { mutableStateOf<String?>(null) }
     val ringtonePicker = rememberLauncherForActivityResult(
@@ -187,6 +190,20 @@ fun SettingsScreen(
                     current = state.retentionDays,
                     onSelect = viewModel::setRetentionDays
                 )
+                Text(
+                    "Bleiben nach dem Deaktivieren einer Quelle noch alte Nachrichten stehen, " +
+                        "kannst du hier den kompletten Nachrichten-Cache leeren. Einstellungen und " +
+                        "Konten bleiben erhalten; aktive Quellen laden neue Nachrichten wieder.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                TextButton(
+                    onClick = { showClearDialog = true },
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                ) {
+                    Text("Alle Nachrichten löschen (Cache leeren)", color = MaterialTheme.colorScheme.error)
+                }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
                 SectionHeader("Direkte Anbindungen")
@@ -308,6 +325,31 @@ fun SettingsScreen(
                 )
             }
         }
+    }
+
+    if (showClearDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text("Alle Nachrichten löschen?") },
+            text = {
+                Text(
+                    "Der gesamte Nachrichten-Cache wird entfernt (behebt „alte Nachrichten " +
+                        "bleiben stehen“). Einstellungen und Konten bleiben erhalten; aktive " +
+                        "Quellen laden neue Nachrichten wieder. Nicht rückgängig machbar."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showClearDialog = false
+                    viewModel.clearAllMessages()
+                }) {
+                    Text("Löschen", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearDialog = false }) { Text("Abbrechen") }
+            }
+        )
     }
 }
 
