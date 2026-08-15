@@ -57,12 +57,13 @@ class MatrixCrypto private constructor(
         unusedFallbackKeys: List<String>?,
         nextBatch: String
     ) {
-        // 0.4.3-Signatur: ohne nextBatchToken/decryptionSettings (kamen erst in späteren Versionen).
+        // 0.4.3-Signatur: mit nextBatchToken, aber ohne decryptionSettings (kam erst später).
         machine.receiveSyncChanges(
             events = toDeviceEventsJson,
             deviceChanges = DeviceLists(changed = changedDevices, left = leftDevices),
             keyCounts = oneTimeKeyCounts,
-            unusedFallbackKeys = unusedFallbackKeys
+            unusedFallbackKeys = unusedFallbackKeys,
+            nextBatchToken = nextBatch
         )
         drainOutgoing(api, auth)
     }
