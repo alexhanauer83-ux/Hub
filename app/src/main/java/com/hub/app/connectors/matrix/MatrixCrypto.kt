@@ -5,6 +5,7 @@ import android.util.Log
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import retrofit2.HttpException
 import org.matrix.rustcomponents.sdk.crypto.DeviceLists
 import org.matrix.rustcomponents.sdk.crypto.EncryptionSettings
@@ -90,7 +91,9 @@ class MatrixCrypto private constructor(
                 // VERIFY: Feldnamen/Formen der Request-Varianten je crypto-android-Version.
                 when (request) {
                     is Request.KeysUpload -> {
-                        val resp = api.keysUpload(auth, request.body.json()).string()
+                        // matrix.org lehnt ein explizites "device_keys": null ab (M_INVALID_PARAM);
+                        // die OlmMachine setzt das Feld nach dem ersten Upload auf null → entfernen.
+                        val resp = api.keysUpload(auth, stripNullFields(request.body).json()).string()
                         machine.markRequestAsSent(request.requestId, RequestType.KEYS_UPLOAD, resp)
                     }
                     is Request.KeysQuery -> {
@@ -237,5 +240,18 @@ class MatrixCrypto private constructor(
         }
 
         private fun String.jsonQuote(): String = "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+        /**
+         * Entfernt Top-Level-Felder mit JSON-`null` aus einem Request-Body. Nötig für /keys/upload:
+         * Die OlmMachine setzt `device_keys` nach dem ersten Upload auf `null` (nur One-Time-Keys neu),
+         * doch matrix.org lehnt ein explizites `"device_keys": null` als M_INVALID_PARAM ab – das Feld
+         * muss laut Matrix-Spec schlicht fehlen (es ist optional).
+         */
+        private fun stripNullFields(json: String): String {
+            val obj = JSONObject(json)
+            val nullKeys = obj.keys().asSequence().filter { obj.isNull(it) }.toList()
+            for (k in nullKeys) obj.remove(k)
+            return obj.toString()
+        }
     }
 }
