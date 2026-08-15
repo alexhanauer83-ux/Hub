@@ -93,7 +93,16 @@ class MatrixCrypto private constructor(
                     is Request.KeysUpload -> {
                         // matrix.org lehnt ein explizites "device_keys": null ab (M_INVALID_PARAM);
                         // die OlmMachine setzt das Feld nach dem ersten Upload auf null → entfernen.
-                        val resp = api.keysUpload(auth, stripNullFields(request.body).json()).string()
+                        val cleaned = stripNullFields(request.body)
+                        // DIAGNOSE: exakt sichtbar machen, was zu /keys/upload rausgeht – enthält der
+                        // rohe Body device_keys überhaupt? Ist es null? Bleibt nach dem Säubern etwas übrig?
+                        Log.e(
+                            TAG,
+                            "KeysUpload rohHat_device_keys=${request.body.contains("\"device_keys\"")}" +
+                                " gesäubertHat_device_keys=${cleaned.contains("\"device_keys\"")}" +
+                                " gesäubert(head)=${cleaned.take(220)}"
+                        )
+                        val resp = api.keysUpload(auth, cleaned.json()).string()
                         machine.markRequestAsSent(request.requestId, RequestType.KEYS_UPLOAD, resp)
                     }
                     is Request.KeysQuery -> {
