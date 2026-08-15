@@ -14,6 +14,8 @@ import org.matrix.rustcomponents.sdk.crypto.HistoryVisibility
 import org.matrix.rustcomponents.sdk.crypto.OlmMachine
 import org.matrix.rustcomponents.sdk.crypto.Request
 import org.matrix.rustcomponents.sdk.crypto.RequestType
+import uniffi.matrix_sdk_crypto.DecryptionSettings
+import uniffi.matrix_sdk_crypto.TrustRequirement
 import java.util.UUID
 
 /**
@@ -91,18 +93,10 @@ class MatrixCrypto private constructor(
                 // VERIFY: Feldnamen/Formen der Request-Varianten je crypto-android-Version.
                 when (request) {
                     is Request.KeysUpload -> {
-                        // matrix.org lehnt ein explizites "device_keys": null ab (M_INVALID_PARAM);
-                        // die OlmMachine setzt das Feld nach dem ersten Upload auf null → entfernen.
-                        val cleaned = stripNullFields(request.body)
-                        // DIAGNOSE: exakt sichtbar machen, was zu /keys/upload rausgeht – enthält der
-                        // rohe Body device_keys überhaupt? Ist es null? Bleibt nach dem Säubern etwas übrig?
-                        Log.e(
-                            TAG,
-                            "KeysUpload rohHat_device_keys=${request.body.contains("\"device_keys\"")}" +
-                                " gesäubertHat_device_keys=${cleaned.contains("\"device_keys\"")}" +
-                                " gesäubert(head)=${cleaned.take(220)}"
-                        )
-                        val resp = api.keysUpload(auth, cleaned.json()).string()
+                        // Ab crypto-android 0.11.x lässt die Maschine `device_keys` bei Folge-Uploads
+                        // korrekt weg. stripNullFields bleibt als defensive Absicherung: falls doch ein
+                        // explizites "device_keys": null käme, lehnt matrix.org es als M_INVALID_PARAM ab.
+                        val resp = api.keysUpload(auth, stripNullFields(request.body).json()).string()
                         machine.markRequestAsSent(request.requestId, RequestType.KEYS_UPLOAD, resp)
                     }
                     is Request.KeysQuery -> {
@@ -140,10 +134,12 @@ class MatrixCrypto private constructor(
                     }
                 }
               } catch (e: HttpException) {
-                // DIAGNOSE: welcher Krypto-Endpunkt scheitert und mit welchem Matrix-errcode?
+                // Ein scheiternder Krypto-Request darf NICHT den ganzen Sync-/Entschlüssel-Durchlauf
+                // abbrechen (sonst Retry-Sturm, vgl. matrix-rust-sdk#5200). Fehler loggen und diesen
+                // Drain-Durchlauf beenden – der nächste /sync versucht es erneut.
                 val body = runCatching { e.response()?.errorBody()?.string() }.getOrNull()
-                Log.e(TAG, "Krypto-Request ${request::class.simpleName} → HTTP ${e.code()} · body=$body", e)
-                throw e
+                Log.w(TAG, "Krypto-Request ${request::class.simpleName} → HTTP ${e.code()} · body=$body")
+                return
               }
             }
         }
@@ -189,13 +185,16 @@ class MatrixCrypto private constructor(
      * `null`, wenn (noch) kein passender Raum-Schlüssel vorliegt – dann bleibt der Platzhalter.
      */
     fun decrypt(rawEventJson: String, roomId: String): String? = runCatching {
-        // VERIFY: Rückgabetyp von decryptRoomEvent (DecryptedEvent) – Feld für das Klartext-JSON
-        // heißt je Version .clearEvent / .event.
+        // Positionsargumente (namensunabhängig): event, roomId, handleVerificationEvents,
+        // strictShields, decryptionSettings. Ab 0.11.x verlangt decryptRoomEvent DecryptionSettings.
+        // TrustRequirement.UNTRUSTED: auch von (noch) nicht verifizierten Geräten entschlüsseln –
+        // fürs Anzeigen im Hub wichtiger als strenge Vertrauensprüfung (experimentell).
         machine.decryptRoomEvent(
-            event = rawEventJson,
-            roomId = roomId,
-            handleVerificationEvents = true,
-            strictShields = false
+            rawEventJson,
+            roomId,
+            true,
+            false,
+            DecryptionSettings(TrustRequirement.UNTRUSTED)
         ).clearEvent
     }.getOrNull()
 

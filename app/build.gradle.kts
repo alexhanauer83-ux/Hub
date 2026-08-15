@@ -15,8 +15,8 @@ android {
         applicationId = "com.hub.app"
         minSdk = 29 // Android 10, per spec
         targetSdk = 35
-        versionCode = 60
-        versionName = "0.1.59-e2ee-diag"
+        versionCode = 61
+        versionName = "0.1.60-e2ee"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -131,10 +131,13 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.6.0")
 
     // Matrix E2EE (experimentell): Kotlin-Bindings zur matrix-rust-sdk-Krypto (OlmMachine).
-    // 0.4.3 statt 26.x: die 26er-Reihe ist mit Kotlin 2.3 gebaut (inkompatible Metadaten zu unserem
-    // Kotlin 2.0.21). 0.4.3 ist Kotlin-2.0-kompatibel. Ggf. API der uniffi-Bindings (VERIFY-Marker)
-    // an diese ältere Generation anpassen.
-    implementation("org.matrix.rustcomponents:crypto-android:0.4.3")
+    // 0.11.1 (Juni 2025) statt 0.4.3 (Sep 2024): ein Jahr neuere matrix-sdk-crypto/ruma, die bei
+    // Folge-Uploads `device_keys` WEGLÄSST statt `null` zu senden – matrix.org lehnt explizites null
+    // inzwischen ab (M_INVALID_PARAM, siehe matrix-rust-sdk#5200). 0.11.1 ist wie 0.4.3 mit
+    // kotlin-stdlib 1.9.22 gebaut → metadaten-kompatibel zu unserem Kotlin 2.0.21 (nur die 26.x-Reihe
+    // ist mit Kotlin 2.3 gebaut und damit inkompatibel). API nahezu identisch; einzige Änderung:
+    // decryptRoomEvent verlangt jetzt ein DecryptionSettings-Argument (uniffi.matrix_sdk_crypto).
+    implementation("org.matrix.rustcomponents:crypto-android:0.11.1")
 
     testImplementation("junit:junit:4.13.2")
     // Echtes org.json fuer Unit-Tests - das Android-JAR liefert nur einen Stub, der wirft.
