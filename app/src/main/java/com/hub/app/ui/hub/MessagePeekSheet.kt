@@ -47,11 +47,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.hub.app.data.local.entity.MessageEntity
+import com.hub.app.snooze.SnoozeTimes
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import java.util.TimeZone
 
 /**
  * "Peek": Long-Press auf eine Feed-Zeile zeigt den vollständigen Text plus die
@@ -280,25 +280,11 @@ private fun CustomSnoozeDialog(
 }
 
 /** UTC-Mitternacht des heutigen Tages – Vergleichsbasis für den (UTC-basierten) DatePicker. */
-private fun todayStartUtcMillis(): Long =
-    Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
-        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-    }.timeInMillis
+private fun todayStartUtcMillis(): Long = SnoozeTimes.todayStartUtcMillis()
 
 /** Fügt das (UTC-Mitternacht liefernde) DatePicker-Datum mit der lokalen Uhrzeit zusammen. */
-private fun combineDateTime(dateUtcMillis: Long?, hour: Int, minute: Int): Long {
-    val cal = Calendar.getInstance()
-    dateUtcMillis?.let {
-        val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { timeInMillis = it }
-        cal.set(Calendar.YEAR, utc.get(Calendar.YEAR))
-        cal.set(Calendar.MONTH, utc.get(Calendar.MONTH))
-        cal.set(Calendar.DAY_OF_MONTH, utc.get(Calendar.DAY_OF_MONTH))
-    }
-    cal.set(Calendar.HOUR_OF_DAY, hour); cal.set(Calendar.MINUTE, minute)
-    cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
-    return cal.timeInMillis
-}
+private fun combineDateTime(dateUtcMillis: Long?, hour: Int, minute: Int): Long =
+    SnoozeTimes.combineDateTime(dateUtcMillis, hour, minute)
 
 @Composable
 private fun PeekAction(
@@ -317,28 +303,10 @@ private fun fullTimestamp(timestamp: Long): String =
     SimpleDateFormat("dd.MM.yyyy, HH:mm", Locale.GERMANY).format(Date(timestamp))
 
 /** Millisekunden von jetzt bis heute 18:00 (negativ, wenn schon vorbei). */
-private fun millisUntilTonight(): Long =
-    atTime(days = 0, hour = 18) - System.currentTimeMillis()
+private fun millisUntilTonight(): Long = SnoozeTimes.millisUntilTonight()
 
 /** Millisekunden von jetzt bis morgen 08:00. */
-private fun millisUntilTomorrowMorning(): Long =
-    atTime(days = 1, hour = 8) - System.currentTimeMillis()
+private fun millisUntilTomorrowMorning(): Long = SnoozeTimes.millisUntilTomorrowMorning()
 
 /** Millisekunden von jetzt bis zum nächsten Montag 08:00. */
-private fun millisUntilNextWeek(): Long {
-    val c = Calendar.getInstance().apply {
-        set(Calendar.HOUR_OF_DAY, 8); set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-    }
-    // Mindestens einen Tag weiter, dann bis zum nächsten Montag.
-    do { c.add(Calendar.DAY_OF_YEAR, 1) } while (c.get(Calendar.DAY_OF_WEEK) != Calendar.MONDAY)
-    return c.timeInMillis - System.currentTimeMillis()
-}
-
-/** Zeitpunkt in [days] Tagen um [hour]:00 Uhr als Millis. */
-private fun atTime(days: Int, hour: Int): Long =
-    Calendar.getInstance().apply {
-        add(Calendar.DAY_OF_YEAR, days)
-        set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, 0)
-        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-    }.timeInMillis
+private fun millisUntilNextWeek(): Long = SnoozeTimes.millisUntilNextWeek()

@@ -1,0 +1,29 @@
+name: Unit Tests
+
+# Fuehrt bei jedem Push und Pull Request die JVM-Unit-Tests aus. Ein gruener Lauf
+# bestaetigt, dass die Kernlogik (Ruhezeiten, Snooze-Zeiten, Gruppierung, Ingest-Dedup)
+# unveraendert funktioniert und der Code kompiliert – die einzige verlaessliche Pruefung,
+# da hier nicht lokal gebaut werden kann.
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17 einrichten
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Gradle-Cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit-Tests ausfuehren
+        run: |
+          chmod +x ./gradlew
+          ./gradlew testDebugUnitTest --stacktrace

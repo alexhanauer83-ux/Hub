@@ -79,13 +79,7 @@ class NotificationSettings(context: Context) {
     /** Liegt [nowMinutes] (Minuten seit Mitternacht) aktuell in der Ruhezeit? Behandelt Mitternachts-Überlauf. */
     fun isInQuietHours(nowMinutes: Int = nowMinutesOfDay()): Boolean {
         if (!quietHoursEnabled) return false
-        val start = quietHoursStartMinutes
-        val end = quietHoursEndMinutes
-        return when {
-            start == end -> false
-            start < end -> nowMinutes in start until end
-            else -> nowMinutes >= start || nowMinutes < end // über Mitternacht hinweg
-        }
+        return quietHoursContains(quietHoursStartMinutes, quietHoursEndMinutes, nowMinutes)
     }
 
     private fun nowMinutesOfDay(): Int {

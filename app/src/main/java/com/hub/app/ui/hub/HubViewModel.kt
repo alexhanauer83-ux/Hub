@@ -7,6 +7,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hub.app.data.local.entity.MessageEntity
 import com.hub.app.data.local.entity.SourceAppEntity
+import com.hub.app.data.local.entity.groupValue as computeGroupValue
 import com.hub.app.data.repository.MessageRepository
 import com.hub.app.data.source.ReplyTarget
 import com.hub.app.di.ServiceLocator
@@ -72,7 +73,7 @@ data class ConversationSummary(
 }
 
 /** Der Gruppenschlüssel einer Nachricht: Konversationstitel, sonst Absender. */
-fun MessageEntity.groupValue(): String = conversationId?.takeIf { it.isNotBlank() } ?: sender
+fun MessageEntity.groupValue(): String = computeGroupValue(conversationId, sender)
 
 data class HubUiState(
     val messages: List<MessageEntity> = emptyList(),

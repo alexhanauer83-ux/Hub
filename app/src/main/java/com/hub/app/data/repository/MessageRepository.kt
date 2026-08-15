@@ -34,8 +34,10 @@ class MessageRepository(
         // Absenders landen automatisch im Priority Hub (und tragen den Stern), ohne dass der
         // Nutzer jede einzelne Nachricht antippen muss.
         val isPriorityContact = priorityContactDao.matches(message.sourceKey, message.sender)
-        val sameContent = existing != null &&
-            existing.content == message.content && existing.sender == message.sender
+        // Re-Delivery (gleicher Inhalt + Absender) vs. echte neue Nachricht. Ist [existing] null,
+        // liefert das Prädikat false (kann keine Re-Delivery sein) → sameContent-Zweige unten
+        // greifen dann nur bei tatsächlich vorhandenem [existing] (existing!! ist dort sicher).
+        val sameContent = isSameContent(existing?.content, existing?.sender, message.content, message.sender)
 
         messageDao.upsert(
             MessageEntity(
