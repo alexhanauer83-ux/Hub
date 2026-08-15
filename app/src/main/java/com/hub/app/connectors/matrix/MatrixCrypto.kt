@@ -4,9 +4,10 @@ import android.content.Context
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.matrix.rustcomponents.sdk.crypto.DecryptionSettings
 import org.matrix.rustcomponents.sdk.crypto.DeviceLists
 import org.matrix.rustcomponents.sdk.crypto.EncryptionSettings
+import org.matrix.rustcomponents.sdk.crypto.EventEncryptionAlgorithm
+import org.matrix.rustcomponents.sdk.crypto.HistoryVisibility
 import org.matrix.rustcomponents.sdk.crypto.OlmMachine
 import org.matrix.rustcomponents.sdk.crypto.Request
 import org.matrix.rustcomponents.sdk.crypto.RequestType
@@ -56,14 +57,12 @@ class MatrixCrypto private constructor(
         unusedFallbackKeys: List<String>?,
         nextBatch: String
     ) {
-        // VERIFY: DeviceLists-Konstruktor (changed/left) und die receiveSyncChanges-Parameterreihenfolge.
+        // 0.4.3-Signatur: ohne nextBatchToken/decryptionSettings (kamen erst in späteren Versionen).
         machine.receiveSyncChanges(
             events = toDeviceEventsJson,
             deviceChanges = DeviceLists(changed = changedDevices, left = leftDevices),
             keyCounts = oneTimeKeyCounts,
-            unusedFallbackKeys = unusedFallbackKeys,
-            nextBatchToken = nextBatch,
-            decryptionSettings = DecryptionSettings(TRUST_REQUIREMENT_UNTRUSTED)
+            unusedFallbackKeys = unusedFallbackKeys
         )
         drainOutgoing(api, auth)
     }
@@ -140,8 +139,18 @@ class MatrixCrypto private constructor(
         machine.getMissingSessions(userIds)?.let { dispatchOne(api, auth, it) }
         drainOutgoing(api, auth)
         // Raum-Schlüssel an alle Teilnehmer-Geräte verteilen (To-Device m.room_key).
-        // VERIFY: EncryptionSettings-Konstruktor (Algorithmus, Rotationsparameter, History-Visibility).
-        val shareRequests = machine.shareRoomKey(roomId, userIds, EncryptionSettings())
+        // 0.4.3: EncryptionSettings verlangt alle Felder. Standard: Megolm, Rotation nach 1 Woche/100 Nachrichten.
+        val shareRequests = machine.shareRoomKey(
+            roomId, userIds,
+            EncryptionSettings(
+                algorithm = EventEncryptionAlgorithm.MEGOLM_V1_AES_SHA2,
+                rotationPeriod = 604_800_000UL,
+                rotationPeriodMsgs = 100UL,
+                historyVisibility = HistoryVisibility.SHARED,
+                onlyAllowTrustedDevices = false,
+                errorOnVerifiedUserProblem = false
+            )
+        )
         for (req in shareRequests) dispatchOne(api, auth, req)
         // Jetzt verschlüsseln.
         return machine.encrypt(roomId, eventType, contentJson)
@@ -158,8 +167,7 @@ class MatrixCrypto private constructor(
             event = rawEventJson,
             roomId = roomId,
             handleVerificationEvents = true,
-            strictShields = false,
-            decryptionSettings = DecryptionSettings(TRUST_REQUIREMENT_UNTRUSTED)
+            strictShields = false
         ).clearEvent
     }.getOrNull()
 
@@ -181,10 +189,6 @@ class MatrixCrypto private constructor(
     }
 
     companion object {
-        // VERIFY: exakte Enum-Konstante für „unverifiziert vertrauen" (TrustRequirement.Untrusted).
-        private val TRUST_REQUIREMENT_UNTRUSTED =
-            org.matrix.rustcomponents.sdk.crypto.TrustRequirement.UNTRUSTED
-
         /**
          * Baut die Maschine für ein Konto. Der Store liegt geräteintern unter files/matrix-crypto/<deviceId>.
          * Direkt nach dem Erstellen einmal [drainOutgoing] aufrufen (lädt Geräte- und One-Time-Keys hoch).
