@@ -50,6 +50,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hub.app.data.local.entity.SourceAppEntity
 import com.hub.app.notification.SwipeAction
+import com.hub.app.notification.applyTo
+import com.hub.app.notification.exportFrom
+import com.hub.app.notification.parseBackup
+import com.hub.app.notification.toJson
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,6 +110,42 @@ fun SettingsScreen(
         }
         soundPickSource?.let { viewModel.setSourceSound(it, uri?.toString()) }
         soundPickSource = null
+    }
+
+    // Sichern & Wiederherstellen über den System-Dateiwähler (SAF). Es werden ausschließlich
+    // nicht sensible Einstellungen geschrieben/gelesen – niemals Zugangsdaten.
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val ok = runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { out ->
+                out.write(exportFrom(context).toJson().toByteArray())
+            } ?: error("kein Ausgabestrom")
+        }.isSuccess
+        android.widget.Toast.makeText(
+            context,
+            if (ok) "Einstellungen exportiert" else "Export fehlgeschlagen",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val ok = runCatching {
+            val text = context.contentResolver.openInputStream(uri)
+                ?.use { it.readBytes().decodeToString() } ?: error("kein Eingabestrom")
+            applyTo(context, parseBackup(text))
+        }.isSuccess
+        if (ok) viewModel.refreshSystemState()
+        android.widget.Toast.makeText(
+            context,
+            if (ok) "Einstellungen importiert – für alle Änderungen App neu starten"
+            else "Import fehlgeschlagen",
+            android.widget.Toast.LENGTH_LONG
+        ).show()
     }
 
     LifecycleResumeEffect(Unit) {
@@ -205,6 +245,13 @@ fun SettingsScreen(
                 ) {
                     Text("Alle Nachrichten löschen (Cache leeren)", color = MaterialTheme.colorScheme.error)
                 }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
+                SectionHeader("Sichern & Wiederherstellen")
+                BackupSection(
+                    onExport = { exportLauncher.launch("hub-einstellungen.json") },
+                    onImport = { importLauncher.launch(arrayOf("application/json")) }
+                )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
                 SectionHeader("Wisch-Aktionen")
@@ -542,6 +589,34 @@ private fun RetentionSection(current: Int, onSelect: (Int) -> Unit) {
                     label = { Text(label) }
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun BackupSection(
+    onExport: () -> Unit,
+    onImport: () -> Unit
+) {
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        Text(
+            "Sichere deine App-Einstellungen (Stummschaltungen, angepinnte Quellen und " +
+                "Konversationen, Ruhezeiten, Wisch-Aktionen, Aufbewahrung, Darstellung) als Datei " +
+                "und stelle sie nach einer Neuinstallation wieder her.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "Aus Sicherheitsgründen sind Zugangsdaten (E-Mail-, Matrix- und Telegram-Konten) NICHT " +
+                "enthalten. Einige Änderungen greifen erst nach einem Neustart der App vollständig.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(4.dp))
+        Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = onExport) { Text("Einstellungen exportieren") }
+            TextButton(onClick = onImport) { Text("Einstellungen importieren") }
         }
     }
 }
