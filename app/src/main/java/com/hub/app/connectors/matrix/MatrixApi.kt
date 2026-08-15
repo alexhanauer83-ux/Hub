@@ -92,6 +92,61 @@ interface MatrixApi {
         @Path("roomId") roomId: String
     ): Response<RoomNameResponse>
 
+    // --- E2EE (experimentell): rohe JSON-Endpunkte, wie die OlmMachine sie erwartet ----------
+    // Die OlmMachine liefert fertige Request-Bodies als JSON-String und verlangt die Antwort
+    // ebenfalls als rohen JSON-String zurück (markRequestAsSent) → hier bewusst RequestBody/ResponseBody
+    // statt typisierter Moshi-Modelle.
+
+    /** Roh-Sync: liefert die komplette /sync-Antwort als JSON (für To-Device/Ciphertext/Device-Lists). */
+    @GET("_matrix/client/v3/sync")
+    suspend fun syncRaw(
+        @Header("Authorization") auth: String,
+        @Query("since") since: String?,
+        @Query("timeout") timeoutMs: Int = 30000
+    ): okhttp3.ResponseBody
+
+    @POST("_matrix/client/v3/keys/upload")
+    suspend fun keysUpload(
+        @Header("Authorization") auth: String,
+        @Body body: okhttp3.RequestBody
+    ): okhttp3.ResponseBody
+
+    @POST("_matrix/client/v3/keys/query")
+    suspend fun keysQuery(
+        @Header("Authorization") auth: String,
+        @Body body: okhttp3.RequestBody
+    ): okhttp3.ResponseBody
+
+    @POST("_matrix/client/v3/keys/claim")
+    suspend fun keysClaim(
+        @Header("Authorization") auth: String,
+        @Body body: okhttp3.RequestBody
+    ): okhttp3.ResponseBody
+
+    @PUT("_matrix/client/v3/sendToDevice/{eventType}/{txnId}")
+    suspend fun sendToDevice(
+        @Header("Authorization") auth: String,
+        @Path("eventType") eventType: String,
+        @Path("txnId") txnId: String,
+        @Body body: okhttp3.RequestBody
+    ): okhttp3.ResponseBody
+
+    @POST("_matrix/client/v3/keys/signatures/upload")
+    suspend fun signaturesUpload(
+        @Header("Authorization") auth: String,
+        @Body body: okhttp3.RequestBody
+    ): okhttp3.ResponseBody
+
+    /** Generisches Senden eines beliebigen Event-Typs (z. B. m.room.encrypted). */
+    @PUT("_matrix/client/v3/rooms/{roomId}/send/{eventType}/{txnId}")
+    suspend fun sendEvent(
+        @Header("Authorization") auth: String,
+        @Path("roomId") roomId: String,
+        @Path("eventType") eventType: String,
+        @Path("txnId") txnId: String,
+        @Body body: okhttp3.RequestBody
+    ): SendResponse
+
     companion object {
         /** Öffentlicher Standard-Homeserver als Vorbelegung im Setup. */
         const val DEFAULT_HOMESERVER = "https://matrix.org"

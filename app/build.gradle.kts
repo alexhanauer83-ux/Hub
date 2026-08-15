@@ -130,6 +130,10 @@ dependencies {
     // Coil for notification / contact icons
     implementation("io.coil-kt:coil-compose:2.6.0")
 
+    // Matrix E2EE (experimentell): Kotlin-Bindings zur matrix-rust-sdk-Krypto (OlmMachine).
+    // Neueste Version (Jan 2026); der Krypto-Kern ist gegen genau diese API-Generation geschrieben.
+    implementation("org.matrix.rustcomponents:crypto-android:26.1.4")
+
     testImplementation("junit:junit:4.13.2")
     // Echtes org.json fuer Unit-Tests - das Android-JAR liefert nur einen Stub, der wirft.
     testImplementation("org.json:json:20240303")
