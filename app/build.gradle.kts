@@ -131,8 +131,10 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.6.0")
 
     // Matrix E2EE (experimentell): Kotlin-Bindings zur matrix-rust-sdk-Krypto (OlmMachine).
-    // Neueste Version (Jan 2026); der Krypto-Kern ist gegen genau diese API-Generation geschrieben.
-    implementation("org.matrix.rustcomponents:crypto-android:26.1.4")
+    // 0.4.3 statt 26.x: die 26er-Reihe ist mit Kotlin 2.3 gebaut (inkompatible Metadaten zu unserem
+    // Kotlin 2.0.21). 0.4.3 ist Kotlin-2.0-kompatibel. Ggf. API der uniffi-Bindings (VERIFY-Marker)
+    // an diese ältere Generation anpassen.
+    implementation("org.matrix.rustcomponents:crypto-android:0.4.3")
 
     testImplementation("junit:junit:4.13.2")
     // Echtes org.json fuer Unit-Tests - das Android-JAR liefert nur einen Stub, der wirft.
