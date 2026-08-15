@@ -320,8 +320,22 @@ fun HubScreen(
                         nativeSources = state.sources.filter { it.isNativeConnector && it.enabled },
                         sourceCounts = state.sourceCounts,
                         pinnedSources = state.pinnedSources,
-                        onSelectTab = viewModel::selectTab,
-                        onSelectSource = viewModel::selectSourceFilter
+                        // Re-Tap des aktiven Reiters/Quelle → sanft nach oben scrollen (modernes
+                        // Muster wie in Gmail/Chrome), sonst normal umschalten.
+                        onSelectTab = { tab ->
+                            if (state.sourceFilter == null && tab == state.tab) {
+                                scope.launch { listState.animateScrollToItem(0) }
+                            } else {
+                                viewModel.selectTab(tab)
+                            }
+                        },
+                        onSelectSource = { key ->
+                            if (key == state.sourceFilter) {
+                                scope.launch { listState.animateScrollToItem(0) }
+                            } else {
+                                viewModel.selectSourceFilter(key)
+                            }
+                        }
                     )
                     // Gruppieren-Umschalter, wo eine gruppierte Übersicht möglich ist.
                     if (state.tab == HubTab.POSTEINGANG || state.sourceFilter != null) {
