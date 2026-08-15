@@ -49,6 +49,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hub.app.data.local.entity.SourceAppEntity
+import com.hub.app.notification.SwipeAction
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -204,6 +205,15 @@ fun SettingsScreen(
                 ) {
                     Text("Alle Nachrichten löschen (Cache leeren)", color = MaterialTheme.colorScheme.error)
                 }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
+                SectionHeader("Wisch-Aktionen")
+                SwipeActionsSection(
+                    right = state.rightSwipe,
+                    left = state.leftSwipe,
+                    onSetRight = viewModel::setRightSwipe,
+                    onSetLeft = viewModel::setLeftSwipe
+                )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
                 SectionHeader("Direkte Anbindungen")
@@ -464,6 +474,49 @@ private fun DynamicColorRow(enabled: Boolean, onToggle: (Boolean) -> Unit) {
             )
         }
         Switch(checked = enabled, onCheckedChange = onToggle)
+    }
+}
+
+@Composable
+private fun SwipeActionsSection(
+    right: SwipeAction,
+    left: SwipeAction,
+    onSetRight: (SwipeAction) -> Unit,
+    onSetLeft: (SwipeAction) -> Unit
+) {
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        Text(
+            "Lege fest, was das Wischen einer Nachrichtenzeile auslöst.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+        SwipeActionRow("Nach rechts wischen →", right, onSetRight)
+        Spacer(Modifier.height(4.dp))
+        SwipeActionRow("← Nach links wischen", left, onSetLeft)
+    }
+}
+
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun SwipeActionRow(label: String, current: SwipeAction, onSelect: (SwipeAction) -> Unit) {
+    Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val options = listOf(
+        SwipeAction.READ to "Gelesen",
+        SwipeAction.ARCHIVE to "Archivieren",
+        SwipeAction.DELETE to "Löschen",
+        SwipeAction.NONE to "Nichts"
+    )
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { (action, text) ->
+            androidx.compose.material3.FilterChip(
+                selected = current == action,
+                onClick = { onSelect(action) },
+                label = { Text(text) }
+            )
+        }
     }
 }
 

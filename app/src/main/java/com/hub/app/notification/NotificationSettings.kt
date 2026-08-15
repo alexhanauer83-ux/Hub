@@ -3,6 +3,9 @@ package com.hub.app.notification
 import android.content.Context
 import java.util.Calendar
 
+/** Aktion, die eine Wisch-Geste auslöst (konfigurierbar für links/rechts). */
+enum class SwipeAction { NONE, READ, ARCHIVE, DELETE }
+
 /**
  * Einfache, nicht sensible App-Einstellungen rund um Benachrichtigungen (normale
  * SharedPreferences genügen – hier liegen keine Geheimnisse).
@@ -19,6 +22,21 @@ class NotificationSettings(context: Context) {
     var replaceOtherNotifications: Boolean
         get() = prefs.getBoolean(KEY_REPLACE, false)
         set(value) = prefs.edit().putBoolean(KEY_REPLACE, value).apply()
+
+    /**
+     * Konfigurierbare Wisch-Aktionen. Standard = bisheriges Verhalten: rechts wischen = gelesen,
+     * links wischen = archivieren. Gespeichert als Enum-Name.
+     */
+    var rightSwipeAction: SwipeAction
+        get() = readSwipe(KEY_SWIPE_RIGHT, SwipeAction.READ)
+        set(value) = prefs.edit().putString(KEY_SWIPE_RIGHT, value.name).apply()
+
+    var leftSwipeAction: SwipeAction
+        get() = readSwipe(KEY_SWIPE_LEFT, SwipeAction.ARCHIVE)
+        set(value) = prefs.edit().putString(KEY_SWIPE_LEFT, value.name).apply()
+
+    private fun readSwipe(key: String, default: SwipeAction): SwipeAction =
+        runCatching { SwipeAction.valueOf(prefs.getString(key, default.name)!!) }.getOrDefault(default)
 
     /** Hintergrund-Empfang der API-Connectoren (Foreground-Service). Standard: an. */
     var backgroundSyncEnabled: Boolean
@@ -145,6 +163,8 @@ class NotificationSettings(context: Context) {
         const val KEY_PINNED = "pinned_sources"
         const val KEY_GESTURE_HINT = "gesture_hint_dismissed"
         const val KEY_RETENTION_DAYS = "retention_days"
+        const val KEY_SWIPE_RIGHT = "swipe_right_action"
+        const val KEY_SWIPE_LEFT = "swipe_left_action"
         const val KEY_QUIET_ENABLED = "quiet_hours_enabled"
         const val KEY_QUIET_START = "quiet_hours_start"
         const val KEY_QUIET_END = "quiet_hours_end"

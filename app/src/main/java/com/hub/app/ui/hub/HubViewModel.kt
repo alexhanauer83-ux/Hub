@@ -38,6 +38,12 @@ enum class HubTab { POSTEINGANG, PRIORITAET, ARCHIV }
 /** Zustand der Mehrfachauswahl. */
 data class SelectionState(val active: Boolean = false, val ids: Set<String> = emptySet())
 
+/** Aktuell konfigurierte Wisch-Aktionen (rechts/links). */
+data class SwipeConfig(
+    val right: com.hub.app.notification.SwipeAction,
+    val left: com.hub.app.notification.SwipeAction
+)
+
 /**
  * Eine widerrufbare Aktion: [label] beschreibt sie in der Snackbar, [undo] macht sie
  * rückgängig, wenn der Nutzer „Rückgängig" antippt.
@@ -126,6 +132,16 @@ class HubViewModel(application: Application) : AndroidViewModel(application) {
 
     private val searchHistory = com.hub.app.notification.SearchHistory(application)
     private val _recentSearches = MutableStateFlow(searchHistory.recent())
+
+    private val _swipeConfig = MutableStateFlow(
+        SwipeConfig(notificationSettings.rightSwipeAction, notificationSettings.leftSwipeAction)
+    )
+    val swipeConfig: StateFlow<SwipeConfig> = _swipeConfig.asStateFlow()
+
+    /** Nach Rückkehr aus den Einstellungen die konfigurierten Wisch-Aktionen neu einlesen. */
+    fun refreshSwipeConfig() {
+        _swipeConfig.value = SwipeConfig(notificationSettings.rightSwipeAction, notificationSettings.leftSwipeAction)
+    }
 
     /** Widerrufbare Aktionen für die Snackbar (Archivieren/Löschen/Gelesen …). */
     private val _undo = MutableSharedFlow<UndoRequest>(extraBufferCapacity = 4)

@@ -46,7 +46,9 @@ data class SettingsUiState(
     val quietHoursEnabled: Boolean = false,
     val quietHoursStart: Int = 22 * 60,
     val quietHoursEnd: Int = 7 * 60,
-    val retentionDays: Int = 7
+    val retentionDays: Int = 7,
+    val rightSwipe: com.hub.app.notification.SwipeAction = com.hub.app.notification.SwipeAction.READ,
+    val leftSwipe: com.hub.app.notification.SwipeAction = com.hub.app.notification.SwipeAction.ARCHIVE
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
@@ -127,8 +129,20 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         quietHoursEnabled = notificationSettings.quietHoursEnabled,
         quietHoursStart = notificationSettings.quietHoursStartMinutes,
         quietHoursEnd = notificationSettings.quietHoursEndMinutes,
-        retentionDays = notificationSettings.retentionDays
+        retentionDays = notificationSettings.retentionDays,
+        rightSwipe = notificationSettings.rightSwipeAction,
+        leftSwipe = notificationSettings.leftSwipeAction
     )
+
+    fun setRightSwipe(action: com.hub.app.notification.SwipeAction) {
+        notificationSettings.rightSwipeAction = action
+        refreshSystemState()
+    }
+
+    fun setLeftSwipe(action: com.hub.app.notification.SwipeAction) {
+        notificationSettings.leftSwipeAction = action
+        refreshSystemState()
+    }
 
     /** Leert den gesamten Nachrichten-Cache (behebt „alte Nachrichten bleiben stehen"). */
     fun clearAllMessages() = viewModelScope.launch { repository.clearAllMessages() }

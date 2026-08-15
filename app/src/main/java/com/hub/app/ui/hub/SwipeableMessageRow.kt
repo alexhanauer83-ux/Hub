@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -26,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import com.hub.app.data.local.entity.MessageEntity
+import com.hub.app.notification.SwipeAction
 
 /**
  * BlackBerry-Hub-Gestik: Swipe nach **rechts** = als gelesen markieren,
@@ -40,10 +42,13 @@ fun SwipeableMessageRow(
     onMarkRead: () -> Unit,
     onArchive: () -> Unit,
     onUnarchive: () -> Unit,
+    onDelete: () -> Unit,
     onClick: () -> Unit,
     onDoubleClick: () -> Unit,
     onLongPress: () -> Unit,
     onReply: () -> Unit,
+    rightAction: SwipeAction = SwipeAction.READ,
+    leftAction: SwipeAction = SwipeAction.ARCHIVE,
     selectionActive: Boolean = false,
     selected: Boolean = false,
     onToggleSelect: () -> Unit = {},
@@ -52,6 +57,11 @@ fun SwipeableMessageRow(
     val currentOnMarkRead by rememberUpdatedState(onMarkRead)
     val currentOnArchive by rememberUpdatedState(onArchive)
     val currentOnUnarchive by rememberUpdatedState(onUnarchive)
+    val currentOnDelete by rememberUpdatedState(onDelete)
+    // rememberUpdatedState, damit die einmal gemerkte confirmValueChange-Closure die aktuell
+    // konfigurierten Aktionen liest (Änderung in den Einstellungen wirkt ohne Neuanlage).
+    val currentRight by rememberUpdatedState(rightAction)
+    val currentLeft by rememberUpdatedState(leftAction)
     // Fühlbare Bestätigung beim Auslösen einer Wisch-Aktion (moderne Haptik).
     val view = LocalView.current
 
@@ -66,13 +76,20 @@ fun SwipeableMessageRow(
     // - deshalb "wischen ins Archiv ging nicht", Peek-Archivieren aber schon.
     val state = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
-            when (value) {
-                SwipeToDismissBoxValue.StartToEnd -> { view.confirmHaptic(); currentOnMarkRead() }
-                SwipeToDismissBoxValue.EndToStart -> {
-                    view.confirmHaptic()
-                    if (isArchiveView) currentOnUnarchive() else currentOnArchive()
+            val action = when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> currentRight
+                SwipeToDismissBoxValue.EndToStart -> currentLeft
+                SwipeToDismissBoxValue.Settled -> SwipeAction.NONE
+            }
+            if (action != SwipeAction.NONE) {
+                view.confirmHaptic()
+                when (action) {
+                    SwipeAction.READ -> currentOnMarkRead()
+                    // Im Archiv kehrt „Archivieren" zu „Wiederherstellen" um.
+                    SwipeAction.ARCHIVE -> if (isArchiveView) currentOnUnarchive() else currentOnArchive()
+                    SwipeAction.DELETE -> currentOnDelete()
+                    SwipeAction.NONE -> Unit
                 }
-                SwipeToDismissBoxValue.Settled -> Unit
             }
             false
         }
@@ -92,7 +109,12 @@ fun SwipeableMessageRow(
     SwipeToDismissBox(
         state = state,
         modifier = modifier,
-        backgroundContent = { SwipeBackground(state.dismissDirection, isArchiveView) }
+        // Richtungen mit Aktion „Nichts" gar nicht erst wischbar.
+        enableDismissFromStartToEnd = rightAction != SwipeAction.NONE,
+        enableDismissFromEndToStart = leftAction != SwipeAction.NONE,
+        backgroundContent = {
+            SwipeBackground(state.dismissDirection, rightAction, leftAction, isArchiveView)
+        }
     ) {
         MessageRow(
             message = message,
@@ -116,19 +138,35 @@ private fun View.confirmHaptic() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwipeBackground(direction: SwipeToDismissBoxValue, isArchiveView: Boolean) {
-    val isRead = direction == SwipeToDismissBoxValue.StartToEnd
-    val color = when (direction) {
-        SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primary
-        SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.surfaceVariant
-        SwipeToDismissBoxValue.Settled -> MaterialTheme.colorScheme.background
+private fun SwipeBackground(
+    direction: SwipeToDismissBoxValue,
+    rightAction: SwipeAction,
+    leftAction: SwipeAction,
+    isArchiveView: Boolean
+) {
+    val action = when (direction) {
+        SwipeToDismissBoxValue.StartToEnd -> rightAction
+        SwipeToDismissBoxValue.EndToStart -> leftAction
+        SwipeToDismissBoxValue.Settled -> SwipeAction.NONE
     }
-    val icon = when {
-        isRead -> Icons.Default.MarkEmailRead
-        isArchiveView -> Icons.Default.Unarchive
-        else -> Icons.Default.Archive
+    val color = when (action) {
+        SwipeAction.READ -> MaterialTheme.colorScheme.primary
+        SwipeAction.ARCHIVE -> MaterialTheme.colorScheme.surfaceVariant
+        SwipeAction.DELETE -> MaterialTheme.colorScheme.errorContainer
+        SwipeAction.NONE -> MaterialTheme.colorScheme.background
     }
-    val alignment = if (isRead) Alignment.CenterStart else Alignment.CenterEnd
+    val tint = when (action) {
+        SwipeAction.READ -> MaterialTheme.colorScheme.onPrimary
+        SwipeAction.DELETE -> MaterialTheme.colorScheme.onErrorContainer
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    val icon = when (action) {
+        SwipeAction.READ -> Icons.Default.MarkEmailRead
+        SwipeAction.ARCHIVE -> if (isArchiveView) Icons.Default.Unarchive else Icons.Default.Archive
+        SwipeAction.DELETE -> Icons.Default.Delete
+        SwipeAction.NONE -> null
+    }
+    val alignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
 
     Box(
         Modifier
@@ -137,11 +175,11 @@ private fun SwipeBackground(direction: SwipeToDismissBoxValue, isArchiveView: Bo
             .padding(horizontal = 24.dp),
         contentAlignment = alignment
     ) {
-        if (direction != SwipeToDismissBoxValue.Settled) {
+        if (icon != null) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (isRead) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                tint = tint,
                 modifier = Modifier.size(22.dp)
             )
         }

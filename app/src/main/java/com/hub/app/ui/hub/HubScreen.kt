@@ -98,6 +98,12 @@ fun HubScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val quickReplyState by viewModel.quickReplyState.collectAsStateWithLifecycle()
     val selection by viewModel.selectionState.collectAsStateWithLifecycle()
+    val swipeConfig by viewModel.swipeConfig.collectAsStateWithLifecycle()
+    // Nach Rückkehr aus den Einstellungen die konfigurierten Wisch-Aktionen neu einlesen.
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        viewModel.refreshSwipeConfig()
+        onPauseOrDispose { }
+    }
     var peekMessage by remember { mutableStateOf<MessageEntity?>(null) }
     var replyMessage by remember { mutableStateOf<MessageEntity?>(null) }
     var emailMessage by remember { mutableStateOf<MessageEntity?>(null) }
@@ -366,6 +372,9 @@ fun HubScreen(
                     onMarkRead = viewModel::markReadUndoable,
                     onArchive = viewModel::archive,
                     onUnarchive = viewModel::unarchive,
+                    onDelete = viewModel::delete,
+                    rightAction = swipeConfig.right,
+                    leftAction = swipeConfig.left,
                     onOpenPeek = { peekMessage = it },
                     selectionActive = selection.active,
                     selectedIds = selection.ids,
@@ -675,6 +684,9 @@ private fun MessageList(
     onMarkRead: (String) -> Unit,
     onArchive: (String) -> Unit,
     onUnarchive: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    rightAction: com.hub.app.notification.SwipeAction,
+    leftAction: com.hub.app.notification.SwipeAction,
     onOpenPeek: (MessageEntity) -> Unit,
     selectionActive: Boolean,
     selectedIds: Set<String>,
@@ -704,6 +716,9 @@ private fun MessageList(
                     onMarkRead = { onMarkRead(message.id) },
                     onArchive = { onArchive(message.id) },
                     onUnarchive = { onUnarchive(message.id) },
+                    onDelete = { onDelete(message.id) },
+                    rightAction = rightAction,
+                    leftAction = leftAction,
                     // Kurz tippen = Antworten (Vorschau/Antwortfeld), doppelt tippen = App
                     // öffnen, lange drücken = Menü (Peek mit allen Aktionen inkl. App öffnen).
                     onClick = { onReply(message) },
