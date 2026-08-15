@@ -10,8 +10,11 @@ import com.hub.app.data.source.ReplyTarget
 import com.hub.app.data.source.SourceCapability
 import com.hub.app.data.source.SourceQuality
 import com.squareup.moshi.Moshi
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -42,10 +45,35 @@ class MatrixConnector(
     override val capabilities: Set<SourceCapability> =
         setOf(SourceCapability.REPLY, SourceCapability.FULL_HISTORY)
 
+    private val appContext: Context = context.applicationContext
+
     private val moshi = Moshi.Builder().build()
     private val uiaAdapter = moshi.adapter(UiaResponse::class.java)
+    private val eventAdapter = moshi.adapter(MatrixEvent::class.java)
 
     private var cachedApi: Pair<String, MatrixApi>? = null
+
+    // --- E2EE (experimentell) ---
+    private val jsonMedia = "application/json".toMediaType()
+    private var crypto: MatrixCrypto? = null
+    // roomId -> ist der Raum verschlüsselt? (aus m.room.encryption-State bzw. Abfrage).
+    private val encryptedRooms = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
+    /**
+     * Baut die [MatrixCrypto]-Maschine beim ersten Bedarf und lädt dabei Geräte-/One-Time-Keys hoch.
+     * Braucht userId **und** deviceId aus der Session; fehlt eines (z. B. Altsession vor E2EE),
+     * bleibt Krypto aus und verschlüsselte Räume funktionieren erst nach erneutem Login.
+     */
+    private suspend fun ensureCrypto(api: MatrixApi, auth: String): MatrixCrypto? {
+        crypto?.let { return it }
+        val userId = credentials.userId ?: return null
+        val deviceId = credentials.deviceId ?: return null
+        val c = MatrixCrypto.create(appContext, userId, deviceId)
+        crypto = c
+        runCatching { c.drainOutgoing(api, auth) }
+            .onFailure { Log.w(TAG, "E2EE: Schlüssel-Upload fehlgeschlagen", it) }
+        return c
+    }
 
     fun isConfigured(): Boolean = credentials.isConfigured()
 
@@ -200,21 +228,50 @@ class MatrixConnector(
 
         while (currentCoroutineContext().isActive) {
             try {
-                val response = api.sync(auth, since, LONG_POLL_TIMEOUT_MS)
+                // E2EE-Maschine sicherstellen (idempotent; lädt beim ersten Mal die Schlüssel hoch).
+                ensureCrypto(api, auth)
+                // Roh-Sync: die OlmMachine braucht das ungefilterte JSON (To-Device, Ciphertext, Geräte-Listen).
+                val root = JSONObject(api.syncRaw(auth, since, LONG_POLL_TIMEOUT_MS).string())
+                val nextBatch = root.optString("next_batch", since ?: "")
+
+                // Krypto-relevante Teile der Sync-Antwort in die Maschine einspeisen.
+                crypto?.let { c ->
+                    val toDevice = root.optJSONObject("to_device")?.optJSONArray("events")?.toString() ?: "[]"
+                    val dl = root.optJSONObject("device_lists")
+                    val fallback = root.optJSONArray("device_unused_fallback_key_types")?.toStringList()
+                    runCatching {
+                        c.onSyncChanges(
+                            api, auth, toDevice,
+                            dl?.optJSONArray("changed").toStringList(),
+                            dl?.optJSONArray("left").toStringList(),
+                            root.optJSONObject("device_one_time_keys_count").toIntMap(),
+                            fallback, nextBatch
+                        )
+                    }.onFailure { Log.w(TAG, "E2EE: Sync-Verarbeitung fehlgeschlagen", it) }
+                }
+
                 if (!skipBacklog) {
-                    response.rooms?.join?.forEach { (roomId, room) ->
-                        // Raumname aus State-Events übernehmen (falls enthalten).
-                        val stateName = (room.state?.events.orEmpty() + room.timeline?.events.orEmpty())
-                            .firstOrNull { it.type == "m.room.name" }?.content?.name
-                        if (!stateName.isNullOrBlank()) roomNames[roomId] = stateName
+                    val join = root.optJSONObject("rooms")?.optJSONObject("join")
+                    val roomIds = join?.keys()
+                    while (roomIds != null && roomIds.hasNext()) {
+                        val roomId = roomIds.next()
+                        val room = join.getJSONObject(roomId)
+                        val stateEvents = room.optJSONObject("state")?.optJSONArray("events")
+                        val timelineEvents = room.optJSONObject("timeline")?.optJSONArray("events")
+                        // Raumname + Verschlüsselungsstatus aus State/Timeline merken.
+                        noteRoomFacts(roomId, stateEvents)
+                        noteRoomFacts(roomId, timelineEvents)
                         val roomName = roomNames[roomId] ?: ensureRoomName(api, auth, roomId)
 
-                        room.timeline?.events?.forEach { event ->
-                            event.toIncomingMessage(roomId, selfId, roomName)?.let { ingestSink.ingest(it) }
+                        if (timelineEvents != null) {
+                            for (i in 0 until timelineEvents.length()) {
+                                val evObj = timelineEvents.optJSONObject(i) ?: continue
+                                ingestEvent(evObj, roomId, selfId, roomName)?.let { ingestSink.ingest(it) }
+                            }
                         }
                     }
                 }
-                since = response.nextBatch
+                since = nextBatch
                 credentials.syncSince = since
                 skipBacklog = false
                 backoffMillis = INITIAL_BACKOFF_MILLIS
@@ -247,8 +304,19 @@ class MatrixConnector(
         val roomId = target.conversationId
             ?: throw IllegalArgumentException("Kein Raum für die Antwort bekannt")
         val api = buildApi(base)
+        val auth = bearer(token)
+        val c = ensureCrypto(api, auth)
         // txnId muss pro Nachricht eindeutig sein (Idempotenz serverseitig).
-        api.sendMessage(bearer(token), roomId, UUID.randomUUID().toString(), SendRequest(body = text))
+        if (c != null && isRoomEncrypted(api, auth, roomId)) {
+            // Verschlüsselter Raum: Klartext-Content bauen, Raum-Schlüssel verteilen, verschlüsseln,
+            // als m.room.encrypted senden.
+            val content = JSONObject().put("msgtype", "m.text").put("body", text).toString()
+            val members = joinedMemberIds(api, auth, roomId)
+            val encrypted = c.ensureSessionsAndEncrypt(api, auth, roomId, members, "m.room.message", content)
+            api.sendEvent(auth, roomId, "m.room.encrypted", UUID.randomUUID().toString(), encrypted.toRequestBody(jsonMedia))
+        } else {
+            api.sendMessage(auth, roomId, UUID.randomUUID().toString(), SendRequest(body = text))
+        }
         Unit
     }
 
@@ -313,6 +381,71 @@ class MatrixConnector(
             imageUri = imageUri,
             conversationTitle = roomName
         )
+    }
+
+    /**
+     * Wandelt ein rohes Timeline-Event in eine [IncomingMessage]. Verschlüsselte Events
+     * (`m.room.encrypted`) werden – wenn möglich – vorher entschlüsselt und das Klartext-Event
+     * (Typ + Inhalt) mit den Metadaten des Wrapper-Events (Absender, Zeit, ID) kombiniert.
+     * Scheitert die Entschlüsselung, bleibt das Original → Platzhalter wie bisher.
+     */
+    private fun ingestEvent(evObj: JSONObject, roomId: String, selfId: String?, roomName: String?): IncomingMessage? {
+        val effective = if (evObj.optString("type") == "m.room.encrypted") {
+            val clear = crypto?.decrypt(evObj.toString(), roomId)
+            if (clear != null) {
+                val clearObj = runCatching { JSONObject(clear) }.getOrNull()
+                if (clearObj != null) {
+                    JSONObject().apply {
+                        put("type", clearObj.optString("type"))
+                        put("content", clearObj.opt("content"))
+                        put("sender", evObj.opt("sender"))
+                        put("event_id", evObj.opt("event_id"))
+                        put("origin_server_ts", evObj.opt("origin_server_ts"))
+                    }
+                } else evObj
+            } else evObj
+        } else evObj
+        val event = runCatching { eventAdapter.fromJson(effective.toString()) }.getOrNull() ?: return null
+        return event.toIncomingMessage(roomId, selfId, roomName)
+    }
+
+    /** Merkt sich Raumname (m.room.name) und Verschlüsselungsstatus (m.room.encryption) aus Events. */
+    private fun noteRoomFacts(roomId: String, events: JSONArray?) {
+        if (events == null) return
+        for (i in 0 until events.length()) {
+            val ev = events.optJSONObject(i) ?: continue
+            when (ev.optString("type")) {
+                "m.room.name" -> ev.optJSONObject("content")?.optString("name")
+                    ?.takeIf { it.isNotBlank() }?.let { roomNames[roomId] = it }
+                "m.room.encryption" -> encryptedRooms[roomId] = true
+            }
+        }
+    }
+
+    /** Ist der Raum verschlüsselt? (aus Sync gemerkt, sonst per State-Abfrage; Ergebnis gecached.) */
+    private suspend fun isRoomEncrypted(api: MatrixApi, auth: String, roomId: String): Boolean {
+        encryptedRooms[roomId]?.let { return it }
+        val enc = runCatching {
+            val r = api.roomEncryption(auth, roomId)
+            r.isSuccessful && !r.body()?.algorithm.isNullOrBlank()
+        }.getOrDefault(false)
+        encryptedRooms[roomId] = enc
+        return enc
+    }
+
+    /** Beigetretene Mitglieder eines Raums (User-IDs) – Ziel der Schlüsselverteilung. */
+    private suspend fun joinedMemberIds(api: MatrixApi, auth: String, roomId: String): List<String> =
+        runCatching { api.joinedMembers(auth, roomId).joined.keys.toList() }.getOrDefault(emptyList())
+
+    private fun JSONArray?.toStringList(): List<String> =
+        if (this == null) emptyList() else (0 until length()).map { optString(it) }
+
+    private fun JSONObject?.toIntMap(): Map<String, Int> {
+        if (this == null) return emptyMap()
+        val out = HashMap<String, Int>()
+        val it = keys()
+        while (it.hasNext()) { val k = it.next(); out[k] = optInt(k) }
+        return out
     }
 
     /**

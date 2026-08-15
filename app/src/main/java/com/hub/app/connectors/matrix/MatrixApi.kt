@@ -147,6 +147,20 @@ interface MatrixApi {
         @Body body: okhttp3.RequestBody
     ): SendResponse
 
+    /** Verschlüsselungs-State eines Raums (m.room.encryption); vorhanden = Raum ist E2EE. */
+    @GET("_matrix/client/v3/rooms/{roomId}/state/m.room.encryption/")
+    suspend fun roomEncryption(
+        @Header("Authorization") auth: String,
+        @Path("roomId") roomId: String
+    ): Response<EncryptionStateResponse>
+
+    /** Beigetretene Mitglieder eines Raums – für die Ziel-Geräte der Schlüsselverteilung. */
+    @GET("_matrix/client/v3/rooms/{roomId}/joined_members")
+    suspend fun joinedMembers(
+        @Header("Authorization") auth: String,
+        @Path("roomId") roomId: String
+    ): JoinedMembersResponse
+
     companion object {
         /** Öffentlicher Standard-Homeserver als Vorbelegung im Setup. */
         const val DEFAULT_HOMESERVER = "https://matrix.org"
@@ -292,3 +306,12 @@ data class CreateRoomResponse(@Json(name = "room_id") val roomId: String)
 
 @JsonClass(generateAdapter = true)
 data class RoomNameResponse(val name: String? = null)
+
+@JsonClass(generateAdapter = true)
+data class EncryptionStateResponse(val algorithm: String? = null)
+
+@JsonClass(generateAdapter = true)
+data class JoinedMembersResponse(val joined: Map<String, JoinedMember> = emptyMap())
+
+@JsonClass(generateAdapter = true)
+data class JoinedMember(@Json(name = "display_name") val displayName: String? = null)
