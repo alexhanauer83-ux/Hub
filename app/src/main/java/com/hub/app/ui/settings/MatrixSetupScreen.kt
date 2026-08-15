@@ -119,7 +119,9 @@ class MatrixSetupViewModel(application: Application) : AndroidViewModel(applicat
 
     fun loadContacts() = viewModelScope.launch {
         val current = _state.value as? MatrixSetupState.Connected ?: return@launch
-        _state.value = current.copy(contactsLoading = true)
+        // Ein erfolgreiches Aktualisieren räumt eine alte Aktions-Fehlermeldung weg,
+        // damit z. B. ein „HTTP 400" von früher nicht dauerhaft stehen bleibt.
+        _state.value = current.copy(contactsLoading = true, actionStatus = null)
         val contacts = connector.fetchContacts().getOrDefault(emptyList())
         (_state.value as? MatrixSetupState.Connected)?.let {
             _state.value = it.copy(contacts = contacts, contactsLoading = false)
@@ -132,7 +134,7 @@ class MatrixSetupViewModel(application: Application) : AndroidViewModel(applicat
     fun sendToRoom(roomId: String, text: String) = viewModelScope.launch {
         val status = connector.sendToRoom(roomId, text).fold(
             onSuccess = { "Gesendet" },
-            onFailure = { it.message ?: "Senden fehlgeschlagen" }
+            onFailure = { humanError(it, "Senden fehlgeschlagen") }
         )
         updateConnected { it.copy(actionStatus = status, composeTarget = null) }
     }
@@ -140,7 +142,7 @@ class MatrixSetupViewModel(application: Application) : AndroidViewModel(applicat
     fun startDirectChat(userId: String) = viewModelScope.launch {
         val status = connector.startDirectChat(userId).fold(
             onSuccess = { "Chat mit $userId angelegt" },
-            onFailure = { it.message ?: "Chat konnte nicht angelegt werden" }
+            onFailure = { humanError(it, "Chat konnte nicht angelegt werden") }
         )
         updateConnected { it.copy(actionStatus = status) }
         loadContacts()
@@ -149,10 +151,24 @@ class MatrixSetupViewModel(application: Application) : AndroidViewModel(applicat
     fun leaveRoom(roomId: String) = viewModelScope.launch {
         val status = connector.leaveRoom(roomId).fold(
             onSuccess = { "Raum verlassen" },
-            onFailure = { it.message ?: "Verlassen fehlgeschlagen" }
+            onFailure = { humanError(it, "Verlassen fehlgeschlagen") }
         )
         updateConnected { it.copy(actionStatus = status, composeTarget = null) }
         loadContacts()
+    }
+
+    /**
+     * Übersetzt technische Fehler in eine für Nutzer verständliche Meldung. Rohe Retrofit-
+     * Meldungen wie „HTTP 400" sagen niemandem etwas; hier wird der Kontext ergänzt.
+     */
+    private fun humanError(t: Throwable, fallback: String): String = when (t) {
+        is retrofit2.HttpException -> when (t.code()) {
+            400 -> "$fallback (Serverfehler 400 – evtl. verschlüsselter Raum)"
+            401, 403 -> "$fallback (nicht berechtigt – bitte neu anmelden)"
+            in 500..599 -> "$fallback (Server nicht erreichbar)"
+            else -> "$fallback (Fehler ${t.code()})"
+        }
+        else -> t.message ?: fallback
     }
 
     private fun updateConnected(transform: (MatrixSetupState.Connected) -> MatrixSetupState.Connected) {
