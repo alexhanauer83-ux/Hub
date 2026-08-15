@@ -15,8 +15,8 @@ android {
         applicationId = "com.hub.app"
         minSdk = 29 // Android 10, per spec
         targetSdk = 35
-        versionCode = 56
-        versionName = "0.1.55"
+        versionCode = 57
+        versionName = "0.1.56"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

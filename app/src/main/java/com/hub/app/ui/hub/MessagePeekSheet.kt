@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.MarkEmailRead
@@ -44,6 +45,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.hub.app.data.local.entity.MessageEntity
@@ -81,6 +85,8 @@ fun MessagePeekSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showCustomSnooze by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
 
     if (showCustomSnooze) {
         CustomSnoozeDialog(
@@ -177,6 +183,16 @@ fun MessagePeekSheet(
                     onClick = onTogglePriority
                 )
                 PeekAction(Icons.Default.Delete, "Löschen", onDelete)
+                // Text (bei E-Mails inkl. Betreff) in die Zwischenablage kopieren.
+                PeekAction(Icons.Default.ContentCopy, "Kopieren") {
+                    val subject = message.subject?.takeIf { it.isNotBlank() }
+                    val text = if (subject != null) "$subject\n\n${message.content}" else message.content
+                    clipboard.setText(AnnotatedString(text))
+                    // Ab Android 13 zeigt das System selbst eine Kopier-Bestätigung → kein Doppel-Toast.
+                    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
+                        android.widget.Toast.makeText(context, "Text kopiert", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
 
             TextButton(onClick = onAlwaysPrioritizeSender) {
