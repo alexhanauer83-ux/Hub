@@ -22,14 +22,25 @@ import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material.icons.filled.MarkEmailUnread
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
@@ -40,6 +51,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 /**
  * "Peek": Long-Press auf eine Feed-Zeile zeigt den vollständigen Text plus die
@@ -68,6 +80,18 @@ fun MessagePeekSheet(
     onSendQuickReply: (String) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var showCustomSnooze by remember { mutableStateOf(false) }
+
+    if (showCustomSnooze) {
+        CustomSnoozeDialog(
+            onDismiss = { showCustomSnooze = false },
+            onPicked = { targetMillis ->
+                showCustomSnooze = false
+                val delta = targetMillis - System.currentTimeMillis()
+                if (delta > 0) onSnooze(delta)
+            }
+        )
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -181,6 +205,8 @@ fun MessagePeekSheet(
                 }
                 TextButton(onClick = { onSnooze(millisUntilTomorrowMorning()) }) { Text("Morgen früh") }
                 TextButton(onClick = { onSnooze(millisUntilNextWeek()) }) { Text("Nächste Woche") }
+                // Freie Wahl von Tag & Uhrzeit für alle Fälle abseits der Vorschläge.
+                TextButton(onClick = { showCustomSnooze = true }) { Text("Eigene Zeit …") }
             }
 
             if (canQuickReply) {
@@ -198,6 +224,80 @@ fun MessagePeekSheet(
             }
         }
     }
+}
+
+/**
+ * Zweistufige, freie Snooze-Wahl: erst Tag (Material-3-`DatePicker`), dann Uhrzeit
+ * (`TimePicker`). Vergangene Tage sind gesperrt; das Ergebnis ist der absolute Zielzeitpunkt.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CustomSnoozeDialog(
+    onDismiss: () -> Unit,
+    onPicked: (Long) -> Unit
+) {
+    var pickingTime by remember { mutableStateOf(false) }
+    val now = remember { Calendar.getInstance() }
+    val dateState = rememberDatePickerState(
+        initialSelectedDateMillis = now.timeInMillis,
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                utcTimeMillis >= todayStartUtcMillis()
+        }
+    )
+    val timeState = rememberTimePickerState(
+        initialHour = now.get(Calendar.HOUR_OF_DAY),
+        initialMinute = now.get(Calendar.MINUTE),
+        is24Hour = true
+    )
+
+    if (!pickingTime) {
+        DatePickerDialog(
+            onDismissRequest = onDismiss,
+            confirmButton = {
+                TextButton(
+                    onClick = { pickingTime = true },
+                    enabled = dateState.selectedDateMillis != null
+                ) { Text("Weiter") }
+            },
+            dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } }
+        ) {
+            DatePicker(state = dateState)
+        }
+    } else {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            confirmButton = {
+                TextButton(onClick = {
+                    onPicked(combineDateTime(dateState.selectedDateMillis, timeState.hour, timeState.minute))
+                }) { Text("Erinnern") }
+            },
+            dismissButton = { TextButton(onClick = { pickingTime = false }) { Text("Zurück") } },
+            title = { Text("Uhrzeit wählen") },
+            text = { TimePicker(state = timeState) }
+        )
+    }
+}
+
+/** UTC-Mitternacht des heutigen Tages – Vergleichsbasis für den (UTC-basierten) DatePicker. */
+private fun todayStartUtcMillis(): Long =
+    Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+/** Fügt das (UTC-Mitternacht liefernde) DatePicker-Datum mit der lokalen Uhrzeit zusammen. */
+private fun combineDateTime(dateUtcMillis: Long?, hour: Int, minute: Int): Long {
+    val cal = Calendar.getInstance()
+    dateUtcMillis?.let {
+        val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { timeInMillis = it }
+        cal.set(Calendar.YEAR, utc.get(Calendar.YEAR))
+        cal.set(Calendar.MONTH, utc.get(Calendar.MONTH))
+        cal.set(Calendar.DAY_OF_MONTH, utc.get(Calendar.DAY_OF_MONTH))
+    }
+    cal.set(Calendar.HOUR_OF_DAY, hour); cal.set(Calendar.MINUTE, minute)
+    cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
+    return cal.timeInMillis
 }
 
 @Composable
